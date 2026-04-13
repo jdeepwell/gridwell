@@ -6,7 +6,11 @@ class MouseInteractionHandler {
     // MARK: - State
     private let windowInfoProvider: WindowInfoProvider
     private let modifierKeyMonitor: ModifierKeyMonitor
+    private let windowManipulator = WindowManipulator()
     private var activeWindow: WindowInfo?
+
+    // Hard-coded target for Stage 3 testing.
+    private let testFrame = CGRect(x: 100, y: 100, width: 800, height: 600)
 
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -121,10 +125,11 @@ class MouseInteractionHandler {
     }
 
     private func handleMouseUp(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard activeWindow != nil else { return Unmanaged.passRetained(event) }
+        guard let window = activeWindow else { return Unmanaged.passRetained(event) }
         let loc = event.location
         NSLog("[MouseInteractionHandler] Mouse up at (%g, %g) — drag ended", loc.x, loc.y)
         activeWindow = nil
+        windowManipulator.move(window, to: testFrame)
         return nil  // suppress
     }
 }

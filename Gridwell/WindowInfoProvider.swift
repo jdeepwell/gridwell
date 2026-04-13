@@ -4,6 +4,7 @@ import Foundation
 
 struct WindowInfo {
     let windowID: CGWindowID
+    let pid: pid_t
     let ownerName: String
     let windowName: String?   // nil when Screen Recording permission is not granted
     let frame: CGRect
@@ -23,6 +24,7 @@ class WindowInfoProvider {
         windows = rawList.compactMap { dict -> WindowInfo? in
             guard
                 let windowID = dict[kCGWindowNumber as String] as? CGWindowID,
+                let pidRaw = dict[kCGWindowOwnerPID as String] as? Int32,
                 let ownerName = dict[kCGWindowOwnerName as String] as? String,
                 let boundsRef = dict[kCGWindowBounds as String],
                 let frame = CGRect(dictionaryRepresentation: boundsRef as! CFDictionary),
@@ -31,6 +33,7 @@ class WindowInfoProvider {
 
             return WindowInfo(
                 windowID: windowID,
+                pid: pidRaw,
                 ownerName: ownerName,
                 windowName: dict[kCGWindowName as String] as? String,
                 frame: frame,
