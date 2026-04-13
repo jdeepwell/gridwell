@@ -7,6 +7,7 @@ struct GridwellApp: App {
     var body: some Scene {
         Settings {
             PreferencesView()
+                .environmentObject(GridConfigStore.shared)
         }
         .commands {
             CommandGroup(replacing: .appSettings) {

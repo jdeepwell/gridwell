@@ -14,22 +14,24 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2 and 3**
+**Completed: Stages 1, 2, 3 and 4**
 
 ### Architecture
-- `GridwellApp.swift` — SwiftUI `Settings` scene, no main window on launch. CMD+; opens preferences via `SettingsLink`.
+- `GridwellApp.swift` — SwiftUI `Settings` scene, no main window on launch. CMD+; opens preferences via `SettingsLink`. Injects `GridConfigStore.shared` as an `environmentObject`.
 - `AppDelegate.swift` — Requests Accessibility permission on launch (shows alert + opens System Settings if not granted). Starts monitors once trusted.
 - `ModifierKeyMonitor.swift` — Global `flagsChanged` event monitor tracking FN/Globe key state (keyCode 63).
 - `MouseInteractionHandler.swift` — `CGEventTap` at `.cgSessionEventTap` / `.headInsertEventTap`. Intercepts and **suppresses** left mouse down/dragged/up events when FN is held. Identifies the target window via `WindowInfoProvider`. On mouse-up, calls `WindowManipulator` to move the window to a hard-coded test frame.
 - `WindowInfoProvider.swift` — Uses `CGWindowListCopyWindowInfo` to enumerate on-screen windows. Exposes `window(at: CGPoint)` for hit-testing in CoreGraphics coordinates. `WindowInfo` includes `pid` for use by the Accessibility API.
 - `WindowManipulator.swift` — Uses `AXUIElementCreateApplication(pid)` + `kAXPositionAttribute`/`kAXSizeAttribute` to move and resize windows via the Accessibility API.
-- `PreferencesView.swift` — Placeholder SwiftUI view.
+- `GridConfigStore.swift` — `ObservableObject` singleton. Stores a `[String: ScreenGridConfig]` (columns + rows per screen) in `UserDefaults`. Screen keys use point-space dimensions only (e.g. `"2560x1440"`), falling back to appending origin when two screens share the same size. Default column count scales with screen width; default row count is 1.
+- `PreferencesView.swift` — Tabbed preferences window (Grid / Keys). Grid tab shows one `GroupBox` per connected screen with the display name, native resolution, a live grid preview (`Canvas`), and custom column/row steppers. Uses `@EnvironmentObject` for the store and `fixedSize(horizontal: false, vertical: true)` to ensure correct window resizing when switching tabs.
 
 ### Key implementation notes
 - App Sandbox is **disabled** (`ENABLE_APP_SANDBOX = NO`) — required for global event monitoring and window manipulation.
 - Modifier key trigger is hardcoded to the **FN/Globe key**. Device-specific left/right modifier bits are not used (they are unreliable in mouse events; tracked via `flagsChanged` in `ModifierKeyMonitor` instead).
 - `CGEvent.location`, `CGWindowListCopyWindowInfo`, and `AXUIElement` position/size all use CoreGraphics coordinates (origin top-left of primary screen, Y down) — no conversion needed between them.
 - Stage 3 uses a hard-coded test frame `(x: 100, y: 100, width: 800, height: 600)` in `MouseInteractionHandler.testFrame`; this will be replaced with real drag logic in Stage 5.
+- `NSScreen` objects are stable singletons per display — `ForEach(id: \.self)` is safe. `deviceDescription["NSScreenNumber"] as? UInt32` is unreliable; avoid it.
 
 ## Stages
 1. ✅ Create the basic skeleton framework of the application with these items:
@@ -45,7 +47,7 @@ You are provided with the basic application template from Xcode.
 
 3. ✅ Implement the means to modify the position and sizes of the windows on screen. For testing, simply move the window the user is interacting with (by holding down the modifier keys and pressing the mouse button) to a hard-coded, predefined location and size. 
 
-4. Implement the user interface in the preferences window to define the custom grid.
+4. ✅ Implement the user interface in the preferences window to define the custom grid.
   - Make the preferences window a tabbed window so we can later add other preferences. 
   - Take into account that there might be more than one screen. Let the user define different grids for different screens.
   - Define a reasonable default for the grid, for example, columns of full height of a number depending on the width of the screen. For widescreens, more columns. 
