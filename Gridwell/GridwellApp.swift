@@ -1,17 +1,20 @@
-//
-//  GridwellApp.swift
-//  Gridwell
-//
-//  Created by Johannes Tiefenbrunner on 13.04.26.
-//
-
 import SwiftUI
 
 @main
 struct GridwellApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        Settings {
+            PreferencesView()
+        }
+        .commands {
+            CommandGroup(replacing: .appSettings) {
+                SettingsLink {
+                    Text("Preferences...")
+                }
+                .keyboardShortcut(";", modifiers: .command)
+            }
         }
     }
 }

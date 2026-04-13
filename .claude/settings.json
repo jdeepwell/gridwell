@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "permission_prompt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/notify-permission.sh"
+          }
+        ]
+      }
+    ],
+    "idle_prompt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/scripts/notify-idle.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
