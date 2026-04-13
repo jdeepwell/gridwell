@@ -3,18 +3,23 @@ import CoreGraphics
 
 class MouseInteractionHandler {
 
-    // MARK: - State
+    // MARK: - Dependencies
     private let windowInfoProvider: WindowInfoProvider
     private let modifierKeyMonitor: ModifierKeyMonitor
     private let windowManipulator = WindowManipulator()
-    private var activeWindow: WindowInfo?
+    private let gridStore = GridConfigStore.shared
 
-    // Hard-coded target for Stage 3 testing.
-    private let testFrame = CGRect(x: 100, y: 100, width: 800, height: 600)
+    // MARK: - Drag session state
+    private var isTracking = false          // true while FN + left mouse button is held
+    private var activeWindow: WindowInfo?   // window being dragged (nil if click landed on nothing)
+    private var dragStartMousePos  = CGPoint.zero
+    private var dragStartWindowFrame = CGRect.zero
+    private var dragZone: DragZone = .move
+    private var otherWindows: [WindowInfo] = []
 
+    // MARK: - Event tap
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    // Retained pointer to self passed through the C callback via userInfo
     private var selfPtr: UnsafeMutableRawPointer?
 
     // MARK: - Init
@@ -30,16 +35,17 @@ class MouseInteractionHandler {
             (1 << CGEventType.leftMouseDragged.rawValue) |
             (1 << CGEventType.leftMouseUp.rawValue)
 
-        // Retain self so the C callback can reach it via userInfo
         let retained = Unmanaged.passRetained(self)
         selfPtr = retained.toOpaque()
 
-        // The callback is a C function — state is accessed via userInfo.
-        // It runs on the main run loop (see CFRunLoopAddSource below), so
-        // accessing MainActor-isolated properties is safe at runtime.
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passRetained(event) }
             let handler = Unmanaged<MouseInteractionHandler>.fromOpaque(userInfo).takeUnretainedValue()
+            // If the system disabled the tap (callback was too slow), re-enable it immediately.
+            if type == .tapDisabledByTimeout {
+                handler.reenableTap()
+                return nil
+            }
             return handler.handleCGEvent(type: type, event: event)
         }
 
@@ -83,10 +89,14 @@ class MouseInteractionHandler {
 
     deinit { stop() }
 
-    // MARK: - Event handling
+    private func reenableTap() {
+        guard let tap = eventTap else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+        NSLog("[MouseInteractionHandler] Event tap re-enabled after timeout")
+    }
 
-    // Called on the main run loop thread.
-    // Returns nil to suppress the event, or the original event to pass it through.
+    // MARK: - Event routing
+
     private func handleCGEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .leftMouseDown:    return handleMouseDown(event: event)
@@ -96,40 +106,88 @@ class MouseInteractionHandler {
         }
     }
 
+    // MARK: - Mouse down
+
     private func handleMouseDown(event: CGEvent) -> Unmanaged<CGEvent>? {
-        let isFn = modifierKeyMonitor.isFnActive
-        NSLog("[MouseInteractionHandler] leftMouseDown (FN=%@)", isFn ? "true" : "false")
+        guard modifierKeyMonitor.isFnActive else { return Unmanaged.passRetained(event) }
 
-        guard isFn else { return Unmanaged.passRetained(event) }
-
-        let location = event.location  // CoreGraphics coords — matches window frame coords directly
+        isTracking = true
+        let location = event.location
         windowInfoProvider.refresh()
 
-        if let window = windowInfoProvider.window(at: location) {
-            activeWindow = window
-            let title = window.windowName.map { " \"\($0)\"" } ?? ""
-            NSLog("[MouseInteractionHandler] Drag started on [%@]%@ frame=%@",
-                  window.ownerName, title, NSStringFromRect(window.frame))
-        } else {
+        guard let window = windowInfoProvider.window(at: location) else {
             NSLog("[MouseInteractionHandler] Mouse down at (%g, %g) — no window found", location.x, location.y)
+            return nil  // FN is held: suppress the click even with no target window
         }
 
-        return nil  // suppress: the click is ours, don't forward to the window below
+        activeWindow       = window
+        dragStartMousePos  = location
+        dragStartWindowFrame = window.frame
+        dragZone           = GridSnapper.dragZone(at: location, in: window.frame)
+        otherWindows       = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
+        windowManipulator.beginDrag(for: window)
+
+        let zoneLabel: String
+        switch dragZone {
+        case .move:              zoneLabel = "move"
+        case .resize(let edges): zoneLabel = "resize(rawValue:\(edges.rawValue))"
+        }
+        let title = window.windowName.map { " \"\($0)\"" } ?? ""
+        NSLog("[MouseInteractionHandler] Drag started on [%@]%@ zone=%@ frame=%@",
+              window.ownerName, title, zoneLabel, NSStringFromRect(window.frame))
+
+        return nil
     }
+
+    // MARK: - Mouse dragged
 
     private func handleMouseDragged(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard activeWindow != nil else { return Unmanaged.passRetained(event) }
-        let loc = event.location
-        NSLog("[MouseInteractionHandler] Dragging at (%g, %g)", loc.x, loc.y)
-        return nil  // suppress
+        guard isTracking else { return Unmanaged.passRetained(event) }
+        guard activeWindow != nil else { return nil }   // tracked but no window — just suppress
+
+        let location = event.location
+        let delta = CGPoint(
+            x: location.x - dragStartMousePos.x,
+            y: location.y - dragStartMousePos.y
+        )
+
+        let candidate = GridSnapper.candidateFrame(
+            startFrame: dragStartWindowFrame,
+            delta: delta,
+            zone: dragZone
+        )
+
+        let snapMode: SnapMode
+        if event.flags.contains(.maskShift) {
+            snapMode = .windows
+        } else if event.flags.contains(.maskControl) {
+            snapMode = .grid
+        } else {
+            snapMode = .none
+        }
+
+        let snapped = GridSnapper.snap(
+            candidate: candidate,
+            otherWindows: otherWindows,
+            zone: dragZone,
+            gridStore: gridStore,
+            snapMode: snapMode
+        )
+
+        windowManipulator.updateDrag(to: snapped)
+        return nil
     }
 
+    // MARK: - Mouse up
+
     private func handleMouseUp(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard let window = activeWindow else { return Unmanaged.passRetained(event) }
-        let loc = event.location
-        NSLog("[MouseInteractionHandler] Mouse up at (%g, %g) — drag ended", loc.x, loc.y)
+        guard isTracking else { return Unmanaged.passRetained(event) }
+
+        NSLog("[MouseInteractionHandler] Drag ended")
+        isTracking   = false
         activeWindow = nil
-        windowManipulator.move(window, to: testFrame)
-        return nil  // suppress
+        otherWindows = []
+        windowManipulator.endDrag()
+        return nil
     }
 }
