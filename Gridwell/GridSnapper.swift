@@ -215,11 +215,15 @@ struct GridSnapper {
         let clampedCol = max(0, min(CGFloat(columns - 1), col))
         let clampedRow = max(0, min(CGFloat(rows    - 1), row))
 
+        // In the uppermost row, expand height to fill the full screen.
+        let isTopRow = clampedRow == 0
+        let height = isTopRow ? screenCG.height : cellH
+
         return CGRect(
             x: screenCG.minX + clampedCol * cellW,
             y: screenCG.minY + clampedRow * cellH,
             width: cellW,
-            height: cellH
+            height: height
         )
     }
 
