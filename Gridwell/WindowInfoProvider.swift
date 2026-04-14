@@ -53,7 +53,31 @@ class WindowInfoProvider {
     ///   (origin = top-left of primary display, Y increases downward).
     ///   This matches CGEvent.location directly — no conversion needed.
     func window(at cgPoint: CGPoint) -> WindowInfo? {
-        // windows is already sorted front-to-back, so the first match is the topmost.
-        return windows.first { $0.frame.contains(cgPoint) }
+        let candidates = windows.filter { $0.frame.contains(cgPoint) }
+        guard !candidates.isEmpty else { return nil }
+
+        // Fast path: no overlap, no ambiguity.
+        if candidates.count == 1 { return candidates.first }
+
+        // Multiple windows overlap the click point.
+        // CGWindowListCopyWindowInfo does NOT guarantee ordering within the same layer,
+        // so we cannot rely on list position alone. Instead, re-query the window server for
+        // the current front-to-back order and return whichever candidate appears first.
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        if let zList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] {
+            let candidateIDs = Set(candidates.map { $0.windowID })
+            for entry in zList {
+                guard let wid = entry[kCGWindowNumber as String] as? CGWindowID,
+                      candidateIDs.contains(wid),
+                      let match = candidates.first(where: { $0.windowID == wid })
+                else { continue }
+                NSLog("[WindowInfoProvider] z-ordered pick: [%@] (topmost of %d overlapping windows)",
+                      match.ownerName, candidates.count)
+                return match
+            }
+        }
+
+        // Fallback: return the first candidate from the last refresh().
+        return candidates.first
     }
 }
