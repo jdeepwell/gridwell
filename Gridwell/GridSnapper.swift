@@ -116,10 +116,10 @@ struct GridSnapper {
         // Grid + move: snap position AND resize to fit the nearest cell.
         if snapMode == .grid, case .move = zone {
             return snapToGridCell(
-                candidate: candidate,
                 screenCG: screenCG,
                 columns: gridStore.columns(for: screen),
-                rows: gridStore.rows(for: screen)
+                rows: gridStore.rows(for: screen),
+                cursorLocation: cursorLocation
             )
         }
 
@@ -198,18 +198,20 @@ struct GridSnapper {
         return (best, bestDist)
     }
 
-    /// Returns the grid cell whose top-left corner is nearest to `candidate.origin`.
+    /// Returns the grid cell that contains the cursor position.
+    /// Cell is determined by cursor, not by the window's top-left corner — this ensures
+    /// the window snaps to whichever cell the user is pointing at regardless of window size.
     private static func snapToGridCell(
-        candidate: CGRect,
         screenCG: CGRect,
         columns: Int,
-        rows: Int
+        rows: Int,
+        cursorLocation: CGPoint
     ) -> CGRect {
         let cellW = screenCG.width  / CGFloat(columns)
         let cellH = screenCG.height / CGFloat(rows)
 
-        let col = ((candidate.minX - screenCG.minX) / cellW).rounded()
-        let row = ((candidate.minY - screenCG.minY) / cellH).rounded()
+        let col = ((cursorLocation.x - screenCG.minX) / cellW).rounded()
+        let row = ((cursorLocation.y - screenCG.minY) / cellH).rounded()
 
         let clampedCol = max(0, min(CGFloat(columns - 1), col))
         let clampedRow = max(0, min(CGFloat(rows    - 1), row))
