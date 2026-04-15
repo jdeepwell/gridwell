@@ -114,22 +114,30 @@ class WindowManipulator {
     /// Size-before-position ordering prevents the system from repositioning the window after a
     /// size change overwrites an earlier position set. The retry loop handles apps that animate
     /// or clamp geometry — industry-standard approach used by Rectangle, Moom, etc.
+    /// Both position AND size are verified before returning; verifying only position would miss
+    /// cases where the size update lags (e.g. when crossing screen boundaries).
     private func setFrame(_ frame: CGRect, for axWindow: AXUIElement, retries: Int = 5) {
         for attempt in 0..<retries {
             // Size first, then position — prevents system from repositioning after size change.
             applySize(frame.size, to: axWindow)
             applyPosition(frame.origin, to: axWindow)
 
-            // Read back position; break early if it matches.
-            if let actual = readPosition(from: axWindow),
-               abs(actual.x - frame.origin.x) < 1.0 && abs(actual.y - frame.origin.y) < 1.0 {
+            // Read back both position and size; break early only when both match.
+            let posOK = readPosition(from: axWindow).map {
+                abs($0.x - frame.origin.x) < 1.0 && abs($0.y - frame.origin.y) < 1.0
+            } ?? false
+            let sizeOK = readSize(from: axWindow).map {
+                abs($0.width - frame.size.width) < 1.0 && abs($0.height - frame.size.height) < 1.0
+            } ?? false
+
+            if posOK && sizeOK {
                 if attempt > 0 {
                     NSLog("[WindowManipulator] setFrame converged after %d retries", attempt)
                 }
                 return
             }
         }
-        NSLog("[WindowManipulator] setFrame: position did not converge after %d attempts", retries)
+        NSLog("[WindowManipulator] setFrame: frame did not converge after %d attempts", retries)
     }
 
     private func findAXWindow(for windowInfo: WindowInfo, in axApp: AXUIElement) -> AXUIElement? {
@@ -164,6 +172,15 @@ class WindowManipulator {
         var point = CGPoint.zero
         guard AXValueGetValue(val as! AXValue, .cgPoint, &point) else { return nil }
         return point
+    }
+
+    private func readSize(from axWindow: AXUIElement) -> CGSize? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axWindow, kAXSizeAttribute as CFString, &ref) == .success,
+              let val = ref else { return nil }
+        var size = CGSize.zero
+        guard AXValueGetValue(val as! AXValue, .cgSize, &size) else { return nil }
+        return size
     }
 
     /// Returns true when the AX window's current position is within 2 pts of the expected frame origin.
