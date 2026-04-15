@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, and menu bar conversion**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, and deployment/distribution**
 
 ### Architecture
 - `GridwellApp.swift` — SwiftUI `MenuBarExtra` + `Settings` scenes. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), About Gridwell, Quit Gridwell (⌘Q). Settings scene injects `GridConfigStore.shared` as an `environmentObject`.
@@ -62,4 +62,11 @@ You are provided with the basic application template from Xcode.
 
 6. ✅ Add user interface in the preferences window to define the modifier keys.
 
+7. ✅ Integrate Sparkle auto-update framework and set up distribution pipeline.
+  - Sparkle 2.x added via Swift Package Manager
+  - EdDSA key pair generated; public key embedded in Info.plist
+  - "Check for Updates…" menu item wired up via `SPUStandardUpdaterController`
+  - Appcast hosted at `https://raw.githubusercontent.com/jdeepwell/gridwell/main/appcast.xml`
+  - DMG releases published as GitHub Release assets at `https://github.com/jdeepwell/gridwell`
+  - `release.sh` automates: Sparkle component re-signing, DMG creation, notarization, stapling, appcast generation, GitHub Release creation, and appcast commit/push
 
