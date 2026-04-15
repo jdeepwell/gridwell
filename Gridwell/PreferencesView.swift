@@ -12,7 +12,7 @@ struct PreferencesView: View {
             BehaviourTab()
                 .tabItem { Label("Behaviour", systemImage: "slider.horizontal.3") }
 
-            KeysPlaceholderTab()
+            KeysTab()
                 .tabItem { Label("Keys", systemImage: "keyboard") }
         }
         .frame(width: 520)
@@ -187,18 +187,76 @@ private struct BehaviourTab: View {
     }
 }
 
-// MARK: - Keys placeholder tab
+// MARK: - Keys tab
 
-private struct KeysPlaceholderTab: View {
+private struct KeysTab: View {
+    @EnvironmentObject private var store: GridConfigStore
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "keyboard")
-                .font(.system(size: 36))
-                .foregroundStyle(.secondary)
-            Text("Modifier key preferences coming in a future update.")
-                .foregroundStyle(.secondary)
+        VStack(spacing: 16) {
+            GroupBox("Drag Trigger") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Hold this key and left-click anywhere in a window to start dragging or resizing.")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    KeyPickerRow(
+                        label: "Trigger key",
+                        selection: Binding(get: { store.triggerKey },
+                                           set: { store.setTriggerKey($0) })
+                    )
+                }
+                .padding(6)
+            }
+
+            GroupBox("Snap Modifiers") {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Hold an additional modifier while dragging to activate snapping.")
+                        .foregroundStyle(.secondary)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    KeyPickerRow(
+                        label: "Snap to windows",
+                        selection: Binding(get: { store.windowSnapKey },
+                                           set: { store.setWindowSnapKey($0) })
+                    )
+
+                    Divider()
+
+                    KeyPickerRow(
+                        label: "Snap to grid",
+                        selection: Binding(get: { store.gridSnapKey },
+                                           set: { store.setGridSnapKey($0) })
+                    )
+                }
+                .padding(6)
+            }
         }
-        .frame(minWidth: 520, minHeight: 180)
+        .padding()
+        .frame(minWidth: 520, minHeight: 220)
+    }
+}
+
+// MARK: - Key picker row
+
+private struct KeyPickerRow: View {
+    let label: String
+    @Binding var selection: ModifierKey
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Picker("", selection: $selection) {
+                ForEach(ModifierKey.allCases, id: \.self) { key in
+                    Text(key.symbol + "  " + key.displayName).tag(key)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+        }
     }
 }
 

@@ -2,10 +2,7 @@ import AppKit
 
 class ModifierKeyMonitor {
 
-    // kVK_Function = 0x3F (63) — the FN / Globe key
-    private static let fnKeyCode: UInt16 = 63
-
-    private(set) var isFnActive = false
+    private(set) var isTriggerActive = false
 
     private var globalMonitor: Any?
 
@@ -13,7 +10,7 @@ class ModifierKeyMonitor {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             self?.handleFlagsChanged(event)
         }
-        NSLog("[ModifierKeyMonitor] Started — trigger key: FN/Globe")
+        NSLog("[ModifierKeyMonitor] Started — trigger key: %@", GridConfigStore.shared.triggerKey.displayName)
     }
 
     func stop() {
@@ -30,8 +27,12 @@ class ModifierKeyMonitor {
     }
 
     private func handleFlagsChanged(_ event: NSEvent) {
-        guard event.keyCode == Self.fnKeyCode else { return }
-        isFnActive = event.modifierFlags.contains(.function)
-        NSLog("[ModifierKeyMonitor] FN key %@", isFnActive ? "pressed" : "released")
+        let key = GridConfigStore.shared.triggerKey
+        let wasActive = isTriggerActive
+        isTriggerActive = event.modifierFlags.contains(key.nsModifierFlag)
+        if wasActive != isTriggerActive {
+            NSLog("[ModifierKeyMonitor] Trigger key (%@) %@",
+                  key.displayName, isTriggerActive ? "pressed" : "released")
+        }
     }
 }

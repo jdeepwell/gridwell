@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, and 5**
+**Completed: Stages 1, 2, 3, 4, 5, and 6**
 
 ### Architecture
 - `GridwellApp.swift` — SwiftUI `Settings` scene, no main window on launch. CMD+; opens preferences via `SettingsLink`. Injects `GridConfigStore.shared` as an `environmentObject`.
@@ -25,12 +25,13 @@ You are provided with the basic application template from Xcode.
 - `WindowManipulator.swift` — Uses `AXUIElementCreateApplication(pid)` + `kAXPositionAttribute`/`kAXSizeAttribute` to move and resize windows via the Accessibility API. A `DispatchSourceTimer` (10 Hz) on a background serial queue applies the latest pending frame. Each frame is applied via a `setFrame` helper that sets **size before position** (to prevent the system from repositioning the window after a size change) and uses a **read-back retry loop** (up to 5 attempts) that verifies **both position and size** before declaring success — verifying only position would miss cases where size lags (e.g. when crossing between screens with very different cell dimensions). `AXEnhancedUserInterface` is intentionally never touched, as disabling it causes VoiceOver regressions and Chromium UI freezes. `raiseWindow(pid:)` brings the target window and its app to the front at drag start by combining `kAXMainAttribute` (raises window within app), `kAXFrontmostAttribute` (activates the app via AX layer), and `NSRunningApplication.activate()`.
 - `GridConfigStore.swift` — `ObservableObject` singleton. Stores a `[String: ScreenGridConfig]` (columns + rows per screen) and a `raiseWindowOnDrag: Bool` flag in `UserDefaults`. Screen keys use point-space dimensions only (e.g. `"2560x1440"`), falling back to appending origin when two screens share the same size. Default column count scales with screen width; default row count is 1. `raiseWindowOnDrag` defaults to `true`.
 - `GridSnapper.swift` — Stateless helpers for drag-zone detection, candidate frame computation, and snapping. Contains `SnapMode` enum (`.none`, `.windows`, `.grid`). Screen detection for snapping uses the **cursor position** (not the candidate window frame) via `containingScreen(for: CGPoint)`, which avoids false screen switches when a tall window extends past a screen edge. The `cgFrame` helper converts NSScreen → CG coordinates using `NSScreen.screens.first` (the stable primary display) for the Y-flip height — `NSScreen.main` must not be used as it tracks the key-window screen and changes during drags. Grid cell selection uses `floor` of the cursor offset within the screen so the window only advances to the next cell when the cursor physically enters it.
-- `PreferencesView.swift` — Tabbed preferences window (Grid / Behaviour / Keys). Grid tab shows one `GroupBox` per connected screen with the display name, native resolution, a live grid preview (`Canvas`), and custom column/row steppers. Behaviour tab has a toggle for "Raise window to front when dragging".
+- `ModifierKey.swift` — `ModifierKey` enum with cases `.fn`, `.shift`, `.control`, `.option`, `.command`. Each carries a display name, symbol (fn ⇧ ⌃ ⌥ ⌘), `NSEvent.ModifierFlags` flag (for trigger detection), and `CGEventFlags` flag (for snap detection during drags).
+- `PreferencesView.swift` — Tabbed preferences window (Grid / Behaviour / Keys). Grid tab shows one `GroupBox` per connected screen with the display name, native resolution, a live grid preview (`Canvas`), and custom column/row steppers. Behaviour tab has a toggle for "Raise window to front when dragging". Keys tab has two `GroupBox` sections — "Drag Trigger" (picker for the trigger key) and "Snap Modifiers" (pickers for snap-to-windows and snap-to-grid keys).
 
 ### Key implementation notes
 - App Sandbox is **disabled** (`ENABLE_APP_SANDBOX = NO`) — required for global event monitoring and window manipulation.
-- Modifier key trigger is hardcoded to the **FN/Globe key**. Secondary snap modifiers are read live from each drag event (not stored at drag start), so they can be changed mid-drag.
-- Drag interaction: FN + left mouse starts a drag. Releasing FN does not end the drag — only mouse-up does. Snap mode is determined per-drag-event: Shift → snap to other window edges (always nearest, no threshold), Control → snap to grid (always nearest, no threshold), neither → no snapping.
+- All three modifier keys are user-configurable and persisted in `UserDefaults`: **trigger key** (default FN/Globe), **snap-to-windows key** (default Shift), **snap-to-grid key** (default Control). All three are read live at event time, so changes in preferences take effect immediately without restarting.
+- Drag interaction: trigger key + left mouse starts a drag. Releasing the trigger does not end the drag — only mouse-up does. Snap mode is determined per-drag-event: snap-to-windows key → snap to other window edges (always nearest, no threshold), snap-to-grid key → snap to grid (always nearest, no threshold), neither → no snapping.
 - **Move + grid snap**: snaps window to the nearest full grid cell (position and size). The target cell is determined by the **cursor position** within the screen (using `floor` so the cell advances only when the cursor crosses the boundary). Size is always set before position to prevent the system from overwriting the target position after a size change. A read-back retry loop (up to 5 attempts) verifies both position and size. Width is always snapped to the cell width. Height is snapped to the full screen height when the window lands in the uppermost grid row, and to the cell height in all other rows.
 - **Move + no snap / window snap**: window keeps its original size. Releasing the snap modifier mid-drag restores original size automatically (candidate frame always starts from `dragStartWindowFrame`).
 - **Resize zones**: right edge (outer 25 % of width), bottom edge (outer 25 % of height), or bottom-right corner (both). Left/top edges are treated as move.
@@ -59,6 +60,6 @@ You are provided with the basic application template from Xcode.
 
 5. ✅ Implement the final user interaction for dragging/resizing windows on screen while taking into account the defined grid and the other windows on screen, snapping the currently interacted with window to the grid or to the other windows, whichever is nearer.
 
-6. Add user interface in the preferences window to define the modifier keys.
+6. ✅ Add user interface in the preferences window to define the modifier keys.
 
 

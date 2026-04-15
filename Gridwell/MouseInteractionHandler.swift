@@ -109,7 +109,7 @@ class MouseInteractionHandler {
     // MARK: - Mouse down
 
     private func handleMouseDown(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard modifierKeyMonitor.isFnActive else { return Unmanaged.passRetained(event) }
+        guard modifierKeyMonitor.isTriggerActive else { return Unmanaged.passRetained(event) }
 
         isTracking = true
         let location = event.location
@@ -162,9 +162,10 @@ class MouseInteractionHandler {
         )
 
         let snapMode: SnapMode
-        if event.flags.contains(.maskShift) {
+        let flags = event.flags
+        if flags.contains(gridStore.windowSnapKey.cgEventFlag) {
             snapMode = .windows
-        } else if event.flags.contains(.maskControl) {
+        } else if flags.contains(gridStore.gridSnapKey.cgEventFlag) {
             snapMode = .grid
         } else {
             snapMode = .none

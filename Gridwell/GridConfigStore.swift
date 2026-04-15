@@ -47,6 +47,9 @@ class GridConfigStore: ObservableObject {
 
     private let userDefaultsKey      = "com.gridwell.gridConfig"
     private let raiseOnDragKey       = "com.gridwell.raiseWindowOnDrag"
+    private let triggerKeyKey        = "com.gridwell.triggerKey"
+    private let windowSnapKeyKey     = "com.gridwell.windowSnapKey"
+    private let gridSnapKeyKey       = "com.gridwell.gridSnapKey"
 
     /// Maps screen key → grid config. Missing keys fall back to defaults.
     @Published private var config: [String: ScreenGridConfig] = [:]
@@ -54,16 +57,49 @@ class GridConfigStore: ObservableObject {
     /// When true, the interacted window is raised to the front at drag start.
     @Published private(set) var raiseWindowOnDrag: Bool = true
 
+    /// Modifier key that must be held to initiate a drag.
+    @Published private(set) var triggerKey: ModifierKey = .fn
+
+    /// Modifier key held during drag to snap to other window edges.
+    @Published private(set) var windowSnapKey: ModifierKey = .shift
+
+    /// Modifier key held during drag to snap to the grid.
+    @Published private(set) var gridSnapKey: ModifierKey = .control
+
     private init() {
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
             raiseWindowOnDrag = saved
         }
+        triggerKey    = loadModifierKey(forKey: triggerKeyKey,    default: .fn)
+        windowSnapKey = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
+        gridSnapKey   = loadModifierKey(forKey: gridSnapKeyKey,   default: .control)
         load()
     }
 
     func setRaiseWindowOnDrag(_ value: Bool) {
         raiseWindowOnDrag = value
         UserDefaults.standard.set(value, forKey: raiseOnDragKey)
+    }
+
+    func setTriggerKey(_ key: ModifierKey) {
+        triggerKey = key
+        UserDefaults.standard.set(key.rawValue, forKey: triggerKeyKey)
+    }
+
+    func setWindowSnapKey(_ key: ModifierKey) {
+        windowSnapKey = key
+        UserDefaults.standard.set(key.rawValue, forKey: windowSnapKeyKey)
+    }
+
+    func setGridSnapKey(_ key: ModifierKey) {
+        gridSnapKey = key
+        UserDefaults.standard.set(key.rawValue, forKey: gridSnapKeyKey)
+    }
+
+    private func loadModifierKey(forKey key: String, default fallback: ModifierKey) -> ModifierKey {
+        guard let raw = UserDefaults.standard.string(forKey: key),
+              let value = ModifierKey(rawValue: raw) else { return fallback }
+        return value
     }
 
     // MARK: Accessors
