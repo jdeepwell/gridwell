@@ -14,6 +14,12 @@ struct WindowInfo {
 class WindowInfoProvider {
     private(set) var windows: [WindowInfo] = []
 
+    // System-owned processes that produce chrome/utility windows, not user app windows.
+    private static let systemOwners: Set<String> = [
+        "Window Server", "Dock", "SystemUIServer", "Control Center",
+        "WindowManager", "loginwindow", "NotificationCenter"
+    ]
+
     func refresh() {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let rawList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
@@ -22,14 +28,29 @@ class WindowInfoProvider {
         }
 
         windows = rawList.compactMap { dict -> WindowInfo? in
+            // Layer 0 = normal application windows. Higher layers are system chrome
+            // (menu bar ~25, overlays 100+). Skip anything not at layer 0.
+            let layer = dict[kCGWindowLayer as String] as? Int ?? -1
+            guard layer == 0 else { return nil }
+
+            // Fully transparent windows are invisible; skip them.
+            let alpha = dict[kCGWindowAlpha as String] as? Double ?? 0
+            guard alpha > 0 else { return nil }
+
             guard
                 let windowID = dict[kCGWindowNumber as String] as? CGWindowID,
                 let pidRaw = dict[kCGWindowOwnerPID as String] as? Int32,
                 let ownerName = dict[kCGWindowOwnerName as String] as? String,
+                !ownerName.isEmpty,
                 let boundsRef = dict[kCGWindowBounds as String],
-                let frame = CGRect(dictionaryRepresentation: boundsRef as! CFDictionary),
-                let layer = dict[kCGWindowLayer as String] as? Int
+                let frame = CGRect(dictionaryRepresentation: boundsRef as! CFDictionary)
             else { return nil }
+
+            // Skip known system processes that produce non-interactive chrome.
+            guard !Self.systemOwners.contains(ownerName) else { return nil }
+
+            // Zero-size windows are invisible utility surfaces.
+            guard frame.width > 0, frame.height > 0 else { return nil }
 
             return WindowInfo(
                 windowID: windowID,
@@ -63,10 +84,15 @@ class WindowInfoProvider {
         // CGWindowListCopyWindowInfo does NOT guarantee ordering within the same layer,
         // so we cannot rely on list position alone. Instead, re-query the window server for
         // the current front-to-back order and return whichever candidate appears first.
-        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        if let zList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] {
+        let zOptions: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        if let zList = CGWindowListCopyWindowInfo(zOptions, kCGNullWindowID) as? [[String: Any]] {
             let candidateIDs = Set(candidates.map { $0.windowID })
             for entry in zList {
+                // Apply the same phantom-window filters used in refresh().
+                let entryLayer = entry[kCGWindowLayer as String] as? Int ?? -1
+                let entryAlpha = entry[kCGWindowAlpha as String] as? Double ?? 0
+                guard entryLayer == 0, entryAlpha > 0 else { continue }
+
                 guard let wid = entry[kCGWindowNumber as String] as? CGWindowID,
                       candidateIDs.contains(wid),
                       let match = candidates.first(where: { $0.windowID == wid })
