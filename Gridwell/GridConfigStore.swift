@@ -45,12 +45,26 @@ func defaultRowCount(for screen: NSScreen) -> Int { 1 }
 class GridConfigStore: ObservableObject {
     static let shared = GridConfigStore()
 
-    private let userDefaultsKey = "com.gridwell.gridConfig"
+    private let userDefaultsKey      = "com.gridwell.gridConfig"
+    private let raiseOnDragKey       = "com.gridwell.raiseWindowOnDrag"
 
     /// Maps screen key → grid config. Missing keys fall back to defaults.
     @Published private var config: [String: ScreenGridConfig] = [:]
 
-    private init() { load() }
+    /// When true, the interacted window is raised to the front at drag start.
+    @Published private(set) var raiseWindowOnDrag: Bool = true
+
+    private init() {
+        if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
+            raiseWindowOnDrag = saved
+        }
+        load()
+    }
+
+    func setRaiseWindowOnDrag(_ value: Bool) {
+        raiseWindowOnDrag = value
+        UserDefaults.standard.set(value, forKey: raiseOnDragKey)
+    }
 
     // MARK: Accessors
 

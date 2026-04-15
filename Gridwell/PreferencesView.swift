@@ -9,6 +9,9 @@ struct PreferencesView: View {
             GridPreferencesTab()
                 .tabItem { Label("Grid", systemImage: "rectangle.split.3x1") }
 
+            BehaviourTab()
+                .tabItem { Label("Behaviour", systemImage: "slider.horizontal.3") }
+
             KeysPlaceholderTab()
                 .tabItem { Label("Keys", systemImage: "keyboard") }
         }
@@ -161,6 +164,26 @@ private struct GridPreviewShape: View {
                 lineWidth: 1
             )
         }
+    }
+}
+
+// MARK: - Behaviour tab
+
+private struct BehaviourTab: View {
+    @EnvironmentObject private var store: GridConfigStore
+
+    var body: some View {
+        Form {
+            Toggle(
+                "Raise window to front when dragging",
+                isOn: Binding(
+                    get: { store.raiseWindowOnDrag },
+                    set: { store.setRaiseWindowOnDrag($0) }
+                )
+            )
+        }
+        .padding()
+        .frame(minWidth: 520, minHeight: 100)
     }
 }
 

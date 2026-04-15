@@ -54,6 +54,25 @@ class WindowManipulator {
         return axWindow != nil
     }
 
+    /// Raises the target window to the front using complementary approaches:
+    /// - Option B: sets kAXMainAttribute on the specific AX window (raises it within its app).
+    /// - Option A: sets kAXFrontmostAttribute on the app AX element and activates via
+    ///   NSRunningApplication, which together reliably foreground apps that are not currently active.
+    /// Must be called after beginDrag so that cachedAXWindow / cachedAXApp are already populated.
+    func raiseWindow(pid: pid_t) {
+        lock.lock()
+        let axWindow = cachedAXWindow
+        lock.unlock()
+
+        if let axWindow {
+            AXUIElementSetAttributeValue(axWindow, kAXMainAttribute as CFString, kCFBooleanTrue)
+        }
+        if let axApp = cachedAXApp {
+            AXUIElementSetAttributeValue(axApp, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        }
+        NSRunningApplication(processIdentifier: pid)?.activate()
+    }
+
     /// Stores the latest desired frame. Cheap — just a locked write; the timer does the AX work.
     func updateDrag(to newFrame: CGRect) {
         lock.lock()

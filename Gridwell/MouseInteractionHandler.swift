@@ -127,6 +127,10 @@ class MouseInteractionHandler {
         otherWindows       = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
         windowManipulator.beginDrag(for: window)
 
+        if gridStore.raiseWindowOnDrag {
+            windowManipulator.raiseWindow(pid: window.pid)
+        }
+
         let zoneLabel: String
         switch dragZone {
         case .move:              zoneLabel = "move"
