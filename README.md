@@ -80,6 +80,10 @@ Set the three modifier keys independently using dropdown menus. Available choice
 <!-- SCREENSHOT: Preferences window open on the Keys tab, showing the "Drag Trigger" GroupBox with a key picker and the "Snap Modifiers" GroupBox with two key pickers. -->
 > **[Screenshot — Preferences → Keys tab]**
 
+### Updates tab
+
+Toggle automatic update checks. This reflects the choice made at first launch and can be changed at any time.
+
 ---
 
 ## Requirements
