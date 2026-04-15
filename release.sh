@@ -166,7 +166,7 @@ gh release create "$TAG" \
     "releases/${DMG_NAME}" \
     --repo "$GITHUB_REPO" \
     --title "Gridwell ${VERSION}" \
-    --notes "See [CHANGELOG](CHANGELOG.md) for details."
+    --notes "See [CHANGELOG](https://github.com/${GITHUB_REPO}/blob/main/CHANGELOG.md) for details."
 
 # ── Step 9: Push appcast.xml ──────────────────────────────────────────────────
 
