@@ -210,8 +210,8 @@ struct GridSnapper {
         let cellW = screenCG.width  / CGFloat(columns)
         let cellH = screenCG.height / CGFloat(rows)
 
-        let col = ((cursorLocation.x - screenCG.minX) / cellW).rounded()
-        let row = ((cursorLocation.y - screenCG.minY) / cellH).rounded()
+        let col = floor((cursorLocation.x - screenCG.minX) / cellW)
+        let row = floor((cursorLocation.y - screenCG.minY) / cellH)
 
         let clampedCol = max(0, min(CGFloat(columns - 1), col))
         let clampedRow = max(0, min(CGFloat(rows    - 1), row))
