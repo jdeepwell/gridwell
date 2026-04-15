@@ -16,19 +16,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         windowInfoProvider.refresh()
     }
 
-    // Reopen preferences when the user clicks the Dock icon with no windows open
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            openSettingsWindow()
-        }
-        return true
-    }
-
-    func openSettingsWindow() {
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-        NSApp.activate(ignoringOtherApps: true)
-    }
-
     private func requestAccessibilityPermissions() {
         // Check without prompting first
         let trusted = AXIsProcessTrustedWithOptions(nil)

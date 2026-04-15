@@ -14,10 +14,10 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, and 6**
+**Completed: Stages 1, 2, 3, 4, 5, 6, and menu bar conversion**
 
 ### Architecture
-- `GridwellApp.swift` — SwiftUI `Settings` scene, no main window on launch. CMD+; opens preferences via `SettingsLink`. Injects `GridConfigStore.shared` as an `environmentObject`.
+- `GridwellApp.swift` — SwiftUI `MenuBarExtra` + `Settings` scenes. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), About Gridwell, Quit Gridwell (⌘Q). Settings scene injects `GridConfigStore.shared` as an `environmentObject`.
 - `AppDelegate.swift` — Requests Accessibility permission on launch (shows alert + opens System Settings if not granted). Starts monitors once trusted.
 - `ModifierKeyMonitor.swift` — Global `flagsChanged` event monitor tracking FN/Globe key state (keyCode 63).
 - `MouseInteractionHandler.swift` — `CGEventTap` at `.cgSessionEventTap` / `.headInsertEventTap`. Intercepts and **suppresses** left mouse down/dragged/up events when FN is held. Identifies the target window via `WindowInfoProvider`. Computes candidate frames via `GridSnapper` and forwards them to `WindowManipulator`.
