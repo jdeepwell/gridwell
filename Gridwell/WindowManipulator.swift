@@ -15,18 +15,15 @@ class WindowManipulator {
     // Only accessed from axQueue.
     private var lastAppliedFrame: CGRect?
     private var updateTimer: DispatchSourceTimer?
-    // When both position and size change we split the work across two ticks:
-    // tick 1 applies position, tick 2 applies size (once the frame has settled).
-    // This prevents applyPosition from reverting a size change applied in the same tick.
-    private var positionAppliedFor: CGRect?
 
     // MARK: - Drag session API
 
     /// Finds and caches the AX window for `windowInfo`, then starts the 10 Hz update timer.
+    /// AXEnhancedUserInterface is intentionally NOT set — disabling it causes VoiceOver regressions
+    /// and Chromium UI freezes; a size-first + read-back retry loop is used instead.
     func beginDrag(for windowInfo: WindowInfo) -> Bool {
         let axApp = AXUIElementCreateApplication(windowInfo.pid)
         cachedAXApp = axApp
-        AXUIElementSetAttributeValue(axApp, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
         let axWindow = findAXWindow(for: windowInfo, in: axApp)
 
         lock.lock()
@@ -55,8 +52,8 @@ class WindowManipulator {
     }
 
     /// Raises the target window to the front using complementary approaches:
-    /// - Option B: sets kAXMainAttribute on the specific AX window (raises it within its app).
-    /// - Option A: sets kAXFrontmostAttribute on the app AX element and activates via
+    /// - sets kAXMainAttribute on the specific AX window (raises it within its app).
+    /// - sets kAXFrontmostAttribute on the app AX element and activates via
     ///   NSRunningApplication, which together reliably foreground apps that are not currently active.
     /// Must be called after beginDrag so that cachedAXWindow / cachedAXApp are already populated.
     func raiseWindow(pid: pid_t) {
@@ -80,24 +77,20 @@ class WindowManipulator {
         lock.unlock()
     }
 
-    /// Stops the timer, clears state, and ends the enhanced-UI session.
+    /// Stops the timer and clears all drag state.
     func endDrag() {
         lock.lock()
         cachedAXWindow = nil
         pendingFrame   = nil
         lock.unlock()
 
-        if let axApp = cachedAXApp {
-            AXUIElementSetAttributeValue(axApp, "AXEnhancedUserInterface" as CFString, kCFBooleanFalse)
-        }
         cachedAXApp = nil
 
         axQueue.async { [weak self] in
             guard let self else { return }
             self.updateTimer?.cancel()
             self.updateTimer = nil
-            self.lastAppliedFrame   = nil
-            self.positionAppliedFor = nil
+            self.lastAppliedFrame = nil
         }
     }
 
@@ -109,40 +102,35 @@ class WindowManipulator {
         let newFrame = pendingFrame
         lock.unlock()
 
-        guard let axWindow, let newFrame else {
-            positionAppliedFor = nil
-            return
-        }
+        guard let axWindow, let newFrame, newFrame != lastAppliedFrame else { return }
 
-        // Tick 2: position was applied for this exact frame last tick — now apply size.
-        if positionAppliedFor == newFrame {
-            applySize(newFrame.size, to: axWindow)
-            lastAppliedFrame   = newFrame
-            positionAppliedFor = nil
-            return
-        }
-        positionAppliedFor = nil
-
-        let prev = lastAppliedFrame
-        guard newFrame != prev else { return }
-
-        let posChanged  = newFrame.origin != prev?.origin
-        let sizeChanged = newFrame.size   != prev?.size
-
-        if posChanged && sizeChanged {
-            // Tick 1: apply position now; size follows next tick once the frame settles.
-            applyPosition(newFrame.origin, to: axWindow)
-            positionAppliedFor = newFrame   // lastAppliedFrame intentionally not updated yet
-        } else if posChanged {
-            applyPosition(newFrame.origin, to: axWindow)
-            lastAppliedFrame = newFrame
-        } else if sizeChanged {
-            applySize(newFrame.size, to: axWindow)
-            lastAppliedFrame = newFrame
-        }
+        setFrame(newFrame, for: axWindow)
+        lastAppliedFrame = newFrame
     }
 
     // MARK: - Private
+
+    /// Applies size then position with a read-back retry loop.
+    /// Size-before-position ordering prevents the system from repositioning the window after a
+    /// size change overwrites an earlier position set. The retry loop handles apps that animate
+    /// or clamp geometry — industry-standard approach used by Rectangle, Moom, etc.
+    private func setFrame(_ frame: CGRect, for axWindow: AXUIElement, retries: Int = 5) {
+        for attempt in 0..<retries {
+            // Size first, then position — prevents system from repositioning after size change.
+            applySize(frame.size, to: axWindow)
+            applyPosition(frame.origin, to: axWindow)
+
+            // Read back position; break early if it matches.
+            if let actual = readPosition(from: axWindow),
+               abs(actual.x - frame.origin.x) < 1.0 && abs(actual.y - frame.origin.y) < 1.0 {
+                if attempt > 0 {
+                    NSLog("[WindowManipulator] setFrame converged after %d retries", attempt)
+                }
+                return
+            }
+        }
+        NSLog("[WindowManipulator] setFrame: position did not converge after %d attempts", retries)
+    }
 
     private func findAXWindow(for windowInfo: WindowInfo, in axApp: AXUIElement) -> AXUIElement? {
         var windowsRef: CFTypeRef?
@@ -169,13 +157,18 @@ class WindowManipulator {
         }
     }
 
+    private func readPosition(from axWindow: AXUIElement) -> CGPoint? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &ref) == .success,
+              let val = ref else { return nil }
+        var point = CGPoint.zero
+        guard AXValueGetValue(val as! AXValue, .cgPoint, &point) else { return nil }
+        return point
+    }
+
     /// Returns true when the AX window's current position is within 2 pts of the expected frame origin.
     private func matches(_ axWindow: AXUIElement, frame: CGRect) -> Bool {
-        var posRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute as CFString, &posRef) == .success,
-              let posValue = posRef else { return false }
-        var pos = CGPoint.zero
-        guard AXValueGetValue(posValue as! AXValue, .cgPoint, &pos) else { return false }
+        guard let pos = readPosition(from: axWindow) else { return false }
         return abs(pos.x - frame.origin.x) < 2 && abs(pos.y - frame.origin.y) < 2
     }
 }
