@@ -24,6 +24,16 @@ final class SparkleManager: NSObject, ObservableObject, SPUStandardUserDriverDel
         )
     }
 
+    // MARK: Update preferences
+
+    var automaticallyChecksForUpdates: Bool {
+        get { updaterController.updater.automaticallyChecksForUpdates }
+        set {
+            objectWillChange.send()
+            updaterController.updater.automaticallyChecksForUpdates = newValue
+        }
+    }
+
     // MARK: SPUStandardUserDriverDelegate
 
     var supportsGentleScheduledUpdateReminders: Bool { true }
@@ -128,6 +138,7 @@ struct GridwellApp: App {
         Settings {
             PreferencesView()
                 .environmentObject(GridConfigStore.shared)
+                .environmentObject(sparkle)
         }
     }
 }

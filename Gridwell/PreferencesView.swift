@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Sparkle
 
 // MARK: - Root
 
@@ -14,6 +15,9 @@ struct PreferencesView: View {
 
             KeysTab()
                 .tabItem { Label("Keys", systemImage: "keyboard") }
+
+            UpdatesTab()
+                .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
         }
         .frame(width: 520)
     }
@@ -257,6 +261,26 @@ private struct KeyPickerRow: View {
             .pickerStyle(.menu)
             .fixedSize()
         }
+    }
+}
+
+// MARK: - Updates tab
+
+private struct UpdatesTab: View {
+    @EnvironmentObject private var sparkle: SparkleManager
+
+    var body: some View {
+        Form {
+            Toggle(
+                "Automatically check for updates",
+                isOn: Binding(
+                    get: { sparkle.automaticallyChecksForUpdates },
+                    set: { sparkle.automaticallyChecksForUpdates = $0 }
+                )
+            )
+        }
+        .padding()
+        .frame(minWidth: 520, minHeight: 100)
     }
 }
 
