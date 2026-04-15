@@ -175,7 +175,8 @@ class MouseInteractionHandler {
             otherWindows: otherWindows,
             zone: dragZone,
             gridStore: gridStore,
-            snapMode: snapMode
+            snapMode: snapMode,
+            cursorLocation: location
         )
 
         windowManipulator.updateDrag(to: snapped)

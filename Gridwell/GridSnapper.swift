@@ -106,10 +106,11 @@ struct GridSnapper {
         otherWindows: [WindowInfo],
         zone: DragZone,
         gridStore: GridConfigStore,
-        snapMode: SnapMode
+        snapMode: SnapMode,
+        cursorLocation: CGPoint
     ) -> CGRect {
         guard snapMode != .none else { return candidate }
-        guard let screen = containingScreen(for: candidate) else { return candidate }
+        guard let screen = containingScreen(for: cursorLocation) else { return candidate }
         let screenCG = cgFrame(of: screen)
 
         // Grid + move: snap position AND resize to fit the nearest cell.
@@ -152,8 +153,12 @@ struct GridSnapper {
 
     /// Converts an NSScreen frame (AppKit coords: bottom-left origin, Y up)
     /// into a CoreGraphics rect (top-left origin, Y down).
-    private static func cgFrame(of screen: NSScreen) -> CGRect {
-        let primaryHeight = NSScreen.main?.frame.height ?? screen.frame.height
+    ///
+    /// Uses `NSScreen.screens.first` (the stable primary/reference display) for the Y-flip height.
+    /// `NSScreen.main` must NOT be used here — it returns the screen with the key window and
+    /// changes whenever focus switches, corrupting the coordinate conversion mid-drag.
+    static func cgFrame(of screen: NSScreen) -> CGRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? screen.frame.height
         return CGRect(
             x: screen.frame.minX,
             y: primaryHeight - screen.frame.maxY,
@@ -162,19 +167,13 @@ struct GridSnapper {
         )
     }
 
-    /// Returns the NSScreen that has the greatest overlap with `frame` (CG coords).
-    private static func containingScreen(for frame: CGRect) -> NSScreen? {
-        var bestScreen: NSScreen?
-        var bestArea: CGFloat = -1
-        for screen in NSScreen.screens {
-            let inter = cgFrame(of: screen).intersection(frame)
-            let area  = inter.isNull ? 0 : inter.width * inter.height
-            if area > bestArea {
-                bestArea = area
-                bestScreen = screen
-            }
-        }
-        return bestScreen
+    /// Returns the NSScreen that contains `point` (CG coords).
+    ///
+    /// Uses the cursor position rather than the candidate window frame so that the target screen
+    /// is always the one the user is pointing at — a tall candidate frame near a screen edge
+    /// could otherwise overlap an adjacent screen more than the current one, causing wrong snapping.
+    private static func containingScreen(for point: CGPoint) -> NSScreen? {
+        NSScreen.screens.first(where: { cgFrame(of: $0).contains(point) })
     }
 
     private static func gridXLines(screenCG: CGRect, columns: Int) -> [CGFloat] {
