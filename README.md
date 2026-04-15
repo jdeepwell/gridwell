@@ -29,7 +29,7 @@ Hold the **trigger key** (default: FN / Globe) and left-click in the middle of a
 
 ### Resizing a window
 
-Hold the **trigger key** and left-click within the **right 25 %** or **bottom 25 %** of a window's area. Drag to resize. The right edge, bottom edge, and bottom-right corner are all supported.
+Hold the **trigger key** and left-click within the **outer 25 %** of any edge (left, right, top, or bottom). Drag to resize. Corners activate both adjacent edges simultaneously.
 
 ### Snapping
 
@@ -37,11 +37,19 @@ While dragging, hold an additional modifier:
 
 | Modifier (default) | Effect |
 |--------------------|--------|
-| **Control** | Snap to grid — window jumps to the nearest grid cell |
+| **Control** | Snap to grid — window jumps to a grid cell (see below) |
 | **Shift** | Snap to windows — window edges align with edges of other on-screen windows |
 | *(neither)* | Free movement, no snapping |
 
 Snap modifiers can be held or released at any point during a drag.
+
+#### Grid snap — height behaviour
+
+When snapping to the grid, the window height is determined by where the cursor sits within the row:
+
+- **Top half of a row** — window height = one cell.
+- **Bottom half of a row** — window height = two cells (current row + the one below), provided a row below exists.
+- **Very near the bottom edge of the screen** (grids with more than 2 rows only) — window height = full screen height, anchored to the top of the screen.
 
 ---
 
