@@ -14,6 +14,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSLog("[AppDelegate] applicationDidFinishLaunching")
         requestAccessibilityPermissions()
         windowInfoProvider.refresh()
+
+        // When the last visible key window closes, revert to accessory policy
+        // so no Dock icon remains while settings is not showing.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            DispatchQueue.main.async {
+                if !NSApp.windows.contains(where: { $0.isVisible && $0.canBecomeKey }) {
+                    NSApp.setActivationPolicy(.accessory)
+                }
+            }
+        }
     }
 
     private func requestAccessibilityPermissions() {
