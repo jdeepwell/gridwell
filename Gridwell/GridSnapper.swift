@@ -204,9 +204,13 @@ struct GridSnapper {
         return (best, bestDist)
     }
 
-    /// Returns the grid cell that contains the cursor position.
-    /// Cell is determined by cursor, not by the window's top-left corner — this ensures
-    /// the window snaps to whichever cell the user is pointing at regardless of window size.
+    /// Returns the snapped grid rectangle for the cursor position.
+    ///
+    /// Height is determined by where the cursor sits within its row:
+    /// - Cursor in top half of row → 1 cell height.
+    /// - Cursor in bottom half of row and a row below exists → 2 cells height.
+    /// - Cursor within the bottom 25 % of a cell height from the screen's bottom edge
+    ///   (only when the grid has more than 2 rows) → full screen height, y = screen top.
     private static func snapToGridCell(
         screenCG: CGRect,
         columns: Int,
@@ -222,16 +226,20 @@ struct GridSnapper {
         let clampedCol = max(0, min(CGFloat(columns - 1), col))
         let clampedRow = max(0, min(CGFloat(rows    - 1), row))
 
-        // In the uppermost row, expand height to fill the full screen.
-        let isTopRow = clampedRow == 0
-        let height = isTopRow ? screenCG.height : cellH
+        let windowX = screenCG.minX + clampedCol * cellW
+        let rowTop  = screenCG.minY + clampedRow * cellH
 
-        return CGRect(
-            x: screenCG.minX + clampedCol * cellW,
-            y: screenCG.minY + clampedRow * cellH,
-            width: cellW,
-            height: height
-        )
+        // Near bottom edge of screen (3+ row grids only) → full screen height.
+        if rows > 2 && (screenCG.maxY - cursorLocation.y) < cellH * 0.25 {
+            return CGRect(x: windowX, y: screenCG.minY, width: cellW, height: screenCG.height)
+        }
+
+        // Cursor in bottom half of row and a row exists below → span 2 rows.
+        let posInRow = cursorLocation.y - rowTop
+        let spanTwo  = posInRow >= cellH * 0.5 && clampedRow < CGFloat(rows - 1)
+        let height   = spanTwo ? cellH * 2 : cellH
+
+        return CGRect(x: windowX, y: rowTop, width: cellW, height: height)
     }
 
     private static func applySnap(
