@@ -76,8 +76,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if AXIsProcessTrusted() {
                 NSLog("[AppDelegate] Accessibility permission granted")
                 timer.invalidate()
-                self?.permissionsWindowController?.close()
-                self?.permissionsWindowController = nil
+                self?.permissionsWindowController?.transitionToWelcome {
+                    self?.permissionsWindowController = nil
+                }
                 self?.startMonitoring()
             }
         }
