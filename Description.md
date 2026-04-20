@@ -73,6 +73,7 @@ You are provided with the basic application template from Xcode.
   - "Check for Updates…" menu item wired up via `SPUStandardUpdaterController`
   - Gentle background-update reminders via `SPUStandardUserDriverDelegate` — shows "Update Available…" menu item instead of a hidden alert
   - "Automatically check for updates" toggle in Updates preferences tab
+  - "Check for Updates…" button in Updates preferences tab (reuses `CheckForUpdatesView`, disabled while a check is already in progress)
   - Appcast hosted at `https://raw.githubusercontent.com/jdeepwell/gridwell/main/appcast.xml`
   - DMG releases published as GitHub Release assets at `https://github.com/jdeepwell/gridwell`
   - `release.sh` automates: Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation, and appcast commit/push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate).

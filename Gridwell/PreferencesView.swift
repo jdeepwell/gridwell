@@ -428,6 +428,7 @@ private struct UpdatesTab: View {
                     set: { sparkle.automaticallyChecksForUpdates = $0 }
                 )
             )
+            CheckForUpdatesView(updater: sparkle.updaterController.updater)
         }
         .padding()
         .frame(minWidth: 520, minHeight: 100)

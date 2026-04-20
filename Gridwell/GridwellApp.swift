@@ -122,7 +122,7 @@ private final class CheckForUpdatesViewModel: ObservableObject {
     }
 }
 
-private struct CheckForUpdatesView: View {
+struct CheckForUpdatesView: View {
     @ObservedObject private var viewModel: CheckForUpdatesViewModel
     private let updater: SPUUpdater
 
