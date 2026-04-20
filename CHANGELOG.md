@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.4] - 2026-04-20
+
+### Added
+- **First-launch onboarding** — after granting Accessibility permission, the waiting window transitions to a "You're All Set!" screen that shows where to find Gridwell in the menu bar. Dismisses automatically after 8 seconds or on "Got it".
+
 ## [1.0.3] - 2026-04-20
 
 ### Added
