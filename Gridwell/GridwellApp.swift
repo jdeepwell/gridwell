@@ -9,6 +9,19 @@ extension Notification.Name {
     static let openSettingsRequest = Notification.Name("openSettingsRequest")
 }
 
+// MARK: - UI activation helper
+
+/// Promotes the app to `.regular` activation policy and activates it so that any
+/// window opened immediately after will receive focus. Call this before opening any
+/// window from a menu bar action. The AppDelegate's `NSWindow.willCloseNotification`
+/// observer reverts to `.accessory` automatically once all windows are dismissed.
+@MainActor
+func activateAppForUI() async {
+    NSApp.setActivationPolicy(.regular)
+    try? await Task.sleep(for: .milliseconds(100))
+    NSApp.activate(ignoringOtherApps: true)
+}
+
 // MARK: - HiddenWindowView
 
 /// A 1×1 invisible window whose sole purpose is to hold a valid SwiftUI environment
@@ -28,14 +41,9 @@ struct HiddenWindowView: View {
             .frame(width: 1, height: 1)
             .onReceive(NotificationCenter.default.publisher(for: .openSettingsRequest)) { _ in
                 Task { @MainActor in
-                    // 1. Become a regular app so macOS grants window focus.
-                    NSApp.setActivationPolicy(.regular)
-                    // 2. Let the policy change propagate.
-                    try? await Task.sleep(for: .milliseconds(100))
-                    // 3. Activate and open the settings window.
-                    NSApp.activate(ignoringOtherApps: true)
+                    await activateAppForUI()
                     openSettings()
-                    // 4. Extra safety net: locate and force the window to front.
+                    // Safety net: force the settings window to front after SwiftUI opens it.
                     try? await Task.sleep(for: .milliseconds(200))
                     if let window = NSApp.windows.first(where: {
                         $0.identifier?.rawValue == "com.apple.SwiftUI.Settings" ||
@@ -109,6 +117,18 @@ final class SparkleManager: NSObject, ObservableObject, SPUStandardUserDriverDel
     func standardUserDriverWillFinishUpdateSession() {
         DispatchQueue.main.async { self.updatePending = false }
     }
+
+    // MARK: Check for updates (with activation)
+
+    /// Activates the app so Sparkle's windows receive focus, then triggers the check.
+    /// Reverting to `.accessory` policy is handled automatically by AppDelegate's
+    /// `NSWindow.willCloseNotification` observer once all Sparkle windows are closed.
+    func activateAndCheckForUpdates() {
+        Task { @MainActor in
+            await activateAppForUI()
+            updaterController.updater.checkForUpdates()
+        }
+    }
 }
 
 // MARK: - CheckForUpdatesView
@@ -124,16 +144,18 @@ private final class CheckForUpdatesViewModel: ObservableObject {
 
 struct CheckForUpdatesView: View {
     @ObservedObject private var viewModel: CheckForUpdatesViewModel
-    private let updater: SPUUpdater
+    private let sparkle: SparkleManager
 
-    init(updater: SPUUpdater) {
-        self.updater = updater
-        self.viewModel = CheckForUpdatesViewModel(updater: updater)
+    init(sparkle: SparkleManager) {
+        self.sparkle = sparkle
+        self.viewModel = CheckForUpdatesViewModel(updater: sparkle.updaterController.updater)
     }
 
     var body: some View {
-        Button("Check for Updates…", action: updater.checkForUpdates)
-            .disabled(!viewModel.canCheckForUpdates)
+        Button("Check for Updates…") {
+            sparkle.activateAndCheckForUpdates()
+        }
+        .disabled(!viewModel.canCheckForUpdates)
     }
 }
 
@@ -173,12 +195,12 @@ struct GridwellApp: App {
 
             if sparkle.updatePending {
                 Button("Update Available…") {
-                    sparkle.updaterController.updater.checkForUpdates()
+                    sparkle.activateAndCheckForUpdates()
                 }
                 Divider()
             }
 
-            CheckForUpdatesView(updater: sparkle.updaterController.updater)
+            CheckForUpdatesView(sparkle: sparkle)
 
             Divider()
 

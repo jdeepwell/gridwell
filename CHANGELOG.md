@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3] - 2026-04-20
+
+### Added
+- **Check for Updates button** — the Updates preferences tab now has a "Check for Updates…" button alongside the automatic-check toggle, so you can trigger a check without going to the menu bar.
+
+### Fixed
+- **Sparkle windows now open in front** — the update window and "You're up to date" alert now reliably appear in front when triggered from the menu bar or the preferences window, consistent with the fix already applied to the settings window.
+
 ## [1.0.2] - 2026-04-20
 
 ### Added

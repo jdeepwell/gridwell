@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, and post-1.0.1 feature additions. Current release: v1.0.2.**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, and post-1.0.2 improvements. Current release: v1.0.3.**
 
 ### Architecture
 - `GridwellApp.swift` — SwiftUI `Window` (hidden, 1×1) + `MenuBarExtra` + `Settings` scenes. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). The hidden `Window` scene must be declared before `Settings` so that `@Environment(\.openSettings)` resolves correctly. `HiddenWindowView` receives an `openSettingsRequest` notification, temporarily promotes the app to `.regular` activation policy, activates, calls `openSettings()`, then forces the window to front — the only reliable way to raise a settings window for an `.accessory`-policy app on macOS 15. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
@@ -74,6 +74,7 @@ You are provided with the basic application template from Xcode.
   - Gentle background-update reminders via `SPUStandardUserDriverDelegate` — shows "Update Available…" menu item instead of a hidden alert
   - "Automatically check for updates" toggle in Updates preferences tab
   - "Check for Updates…" button in Updates preferences tab (reuses `CheckForUpdatesView`, disabled while a check is already in progress)
+  - Sparkle update windows now reliably open in front: `activateAppForUI()` shared helper promotes to `.regular` policy and activates before any UI is shown; used by both the settings window path and Sparkle's `activateAndCheckForUpdates()`. AppDelegate's existing `NSWindow.willCloseNotification` observer reverts to `.accessory` when all windows close.
   - Appcast hosted at `https://raw.githubusercontent.com/jdeepwell/gridwell/main/appcast.xml`
   - DMG releases published as GitHub Release assets at `https://github.com/jdeepwell/gridwell`
   - `release.sh` automates: Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation, and appcast commit/push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate).
@@ -85,6 +86,10 @@ You are provided with the basic application template from Xcode.
   - Resize from all four window edges (left/top edges added; corners activate both adjacent edges)
   - Smarter grid snap height: cursor position within a row determines 1-cell vs 2-cell span; bottom-edge shortcut for full screen height on 3+ row grids
   - Settings window now reliably opens in front using activation policy switching and a hidden SwiftUI window for the `openSettings()` environment context
+
+11. ✅ Post-1.0.2 improvements (shipped in v1.0.3)
+  - **Check for Updates button in preferences**: "Check for Updates…" button added to the Updates tab in the settings window, alongside the existing automatic-check toggle. Reuses `CheckForUpdatesView` (disabled while a check is already in progress).
+  - **Fully automated release pipeline**: `release.sh` now accepts an optional app path. When omitted, it archives and exports the project automatically via `xcodebuild archive` + `xcodebuild -exportArchive`, using `ExportOptions.plist` (Developer ID, team PZ44T4KUAK). `xcpretty` is used for cleaner output when available.
 
 10. ✅ Screen edges as snap targets in window-snap mode
   - In window-snap mode (FN + Shift), all four edges of every connected screen are now treated as snap candidates alongside other window edges. Works correctly with multi-monitor setups.
