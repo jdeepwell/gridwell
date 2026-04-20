@@ -10,7 +10,8 @@ class WindowManipulator {
     // Protected by lock — written from the main thread, read from axQueue.
     private let lock = NSLock()
     private var cachedAXWindow: AXUIElement?
-    private var pendingFrame: CGRect?   // latest frame from drag events; nil = no update needed
+    private var ownWindow: NSWindow?        // set when the target is Gridwell's own window
+    private var pendingFrame: CGRect?       // latest frame from drag events; nil = no update needed
 
     // Only accessed from axQueue.
     private var lastAppliedFrame: CGRect?
@@ -18,10 +19,37 @@ class WindowManipulator {
 
     // MARK: - Drag session API
 
-    /// Finds and caches the AX window for `windowInfo`, then starts the 10 Hz update timer.
+    /// Finds and caches the target window, then starts the 10 Hz update timer.
+    /// When the target window belongs to Gridwell's own process, uses AppKit (NSWindow.setFrame)
+    /// because AXUIElementSetAttributeValue cannot manipulate the calling app's own windows.
     /// AXEnhancedUserInterface is intentionally NOT set — disabling it causes VoiceOver regressions
     /// and Chromium UI freezes; a size-first + read-back retry loop is used instead.
     func beginDrag(for windowInfo: WindowInfo) -> Bool {
+        let ownPID = pid_t(ProcessInfo.processInfo.processIdentifier)
+
+        if windowInfo.pid == ownPID {
+            // Own-process window: AX API will crash — use AppKit instead.
+            // CGWindowID == NSWindow.windowNumber, so the match is exact.
+            let matched = NSApp.windows.first { $0.windowNumber == Int(windowInfo.windowID) }
+            lock.lock()
+            ownWindow      = matched
+            cachedAXWindow = nil
+            pendingFrame   = nil
+            lock.unlock()
+            cachedAXApp = nil
+            startUpdateTimer(startFrame: windowInfo.frame)
+            if matched == nil {
+                NSLog("[WindowManipulator] beginDrag: own-process window not found for [%@] frame=%@",
+                      windowInfo.ownerName, NSStringFromRect(windowInfo.frame))
+            }
+            return matched != nil
+        }
+
+        // AX path for other apps.
+        lock.lock()
+        ownWindow = nil
+        lock.unlock()
+
         let axApp = AXUIElementCreateApplication(windowInfo.pid)
         cachedAXApp = axApp
         let axWindow = findAXWindow(for: windowInfo, in: axApp)
@@ -31,18 +59,7 @@ class WindowManipulator {
         pendingFrame   = nil
         lock.unlock()
 
-        let startFrame = windowInfo.frame
-        axQueue.async { [weak self] in
-            guard let self else { return }
-            self.lastAppliedFrame = startFrame
-
-            let timer = DispatchSource.makeTimerSource(queue: self.axQueue)
-            // First tick after 100 ms so we never fire before the first drag event arrives.
-            timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
-            timer.setEventHandler { [weak self] in self?.applyPendingFrame() }
-            timer.resume()
-            self.updateTimer = timer
-        }
+        startUpdateTimer(startFrame: windowInfo.frame)
 
         if axWindow == nil {
             NSLog("[WindowManipulator] beginDrag: could not find AX window for [%@] frame=%@",
@@ -56,6 +73,7 @@ class WindowManipulator {
     /// - sets kAXFrontmostAttribute on the app AX element and activates via
     ///   NSRunningApplication, which together reliably foreground apps that are not currently active.
     /// Must be called after beginDrag so that cachedAXWindow / cachedAXApp are already populated.
+    /// For own-process windows both AX lookups are skipped (cachedAXWindow/App are nil).
     func raiseWindow(pid: pid_t) {
         lock.lock()
         let axWindow = cachedAXWindow
@@ -81,6 +99,7 @@ class WindowManipulator {
     func endDrag() {
         lock.lock()
         cachedAXWindow = nil
+        ownWindow      = nil
         pendingFrame   = nil
         lock.unlock()
 
@@ -98,17 +117,49 @@ class WindowManipulator {
 
     private func applyPendingFrame() {
         lock.lock()
+        let ownWin   = ownWindow
         let axWindow = cachedAXWindow
         let newFrame = pendingFrame
         lock.unlock()
 
-        guard let axWindow, let newFrame, newFrame != lastAppliedFrame else { return }
-
-        setFrame(newFrame, for: axWindow)
+        guard let newFrame, newFrame != lastAppliedFrame else { return }
         lastAppliedFrame = newFrame
+
+        if let ownWin {
+            // Own-process window: NSWindow must be moved on the main thread.
+            let nsFrame = cgToAppKit(newFrame)
+            DispatchQueue.main.async { ownWin.setFrame(nsFrame, display: true) }
+        } else if let axWindow {
+            setFrame(newFrame, for: axWindow)
+        }
     }
 
-    // MARK: - Private
+    // MARK: - Private helpers
+
+    private func startUpdateTimer(startFrame: CGRect) {
+        axQueue.async { [weak self] in
+            guard let self else { return }
+            self.lastAppliedFrame = startFrame
+            let timer = DispatchSource.makeTimerSource(queue: self.axQueue)
+            // First tick after 100 ms so we never fire before the first drag event arrives.
+            timer.schedule(deadline: .now() + .milliseconds(100), repeating: .milliseconds(100))
+            timer.setEventHandler { [weak self] in self?.applyPendingFrame() }
+            timer.resume()
+            self.updateTimer = timer
+        }
+    }
+
+    /// Converts a CoreGraphics rect (origin top-left of primary screen, Y down) to an AppKit rect
+    /// (origin bottom-left of primary screen, Y up) for use with NSWindow.setFrame.
+    private func cgToAppKit(_ cgRect: CGRect) -> NSRect {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        return NSRect(
+            x: cgRect.minX,
+            y: primaryHeight - cgRect.maxY,
+            width: cgRect.width,
+            height: cgRect.height
+        )
+    }
 
     /// Applies size then position with a read-back retry loop.
     /// Size-before-position ordering prevents the system from repositioning the window after a

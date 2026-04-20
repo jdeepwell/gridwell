@@ -59,6 +59,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
+    func applicationDidResignActive(_ notification: Notification) {
+        modifierKeyMonitor?.resetTrigger()
+    }
+
     private func startMonitoring() {
         modifierKeyMonitor = ModifierKeyMonitor()
         modifierKeyMonitor?.start()
