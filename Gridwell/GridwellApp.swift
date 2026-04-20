@@ -2,13 +2,6 @@ import SwiftUI
 import Combine
 import Sparkle
 
-// MARK: - Notifications
-
-extension Notification.Name {
-    /// Posted by the Settings menu button to request the settings window be opened.
-    static let openSettingsRequest = Notification.Name("openSettingsRequest")
-}
-
 // MARK: - UI activation helper
 
 /// Promotes the app to `.regular` activation policy and activates it so that any
@@ -22,38 +15,19 @@ func activateAppForUI() async {
     NSApp.activate(ignoringOtherApps: true)
 }
 
-// MARK: - HiddenWindowView
+// MARK: - Settings opener
 
-/// A 1×1 invisible window whose sole purpose is to hold a valid SwiftUI environment
-/// so that `openSettings()` can be called.
-///
-/// Background: `MenuBarExtra` apps run with `.accessory` activation policy (no Dock
-/// icon) and macOS will not raise windows for apps without a Dock icon.  The fix is to
-/// temporarily promote to `.regular`, activate, call `openSettings()` (which requires a
-/// SwiftUI render-tree context — hence this window), then force the window to front.
-/// Scene declaration order matters: this Window scene must appear *before* the
-/// Settings scene so SwiftUI resolves `@Environment(\.openSettings)` correctly.
-struct HiddenWindowView: View {
-    @Environment(\.openSettings) private var openSettings
-
-    var body: some View {
-        Color.clear
-            .frame(width: 1, height: 1)
-            .onReceive(NotificationCenter.default.publisher(for: .openSettingsRequest)) { _ in
-                Task { @MainActor in
-                    await activateAppForUI()
-                    openSettings()
-                    // Safety net: force the settings window to front after SwiftUI opens it.
-                    try? await Task.sleep(for: .milliseconds(200))
-                    if let window = NSApp.windows.first(where: {
-                        $0.identifier?.rawValue == "com.apple.SwiftUI.Settings" ||
-                        ($0.isVisible && $0.styleMask.contains(.titled) && $0.canBecomeKey)
-                    }) {
-                        window.makeKeyAndOrderFront(nil)
-                        window.orderFrontRegardless()
-                    }
-                }
-            }
+@MainActor
+func openSettingsWindow() async {
+    await activateAppForUI()
+    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    try? await Task.sleep(for: .milliseconds(200))
+    if let window = NSApp.windows.first(where: {
+        $0.identifier?.rawValue == "com.apple.SwiftUI.Settings" ||
+        ($0.isVisible && $0.styleMask.contains(.titled) && $0.canBecomeKey)
+    }) {
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
     }
 }
 
@@ -166,28 +140,10 @@ struct GridwellApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var sparkle = SparkleManager()
 
-    init() {
-        // The hidden Window scene opens automatically on launch; close it immediately
-        // so it never appears to the user.
-        DispatchQueue.main.async {
-            NSApp.windows
-                .first { $0.identifier?.rawValue == "HiddenWindow" }?
-                .close()
-        }
-    }
-
     var body: some Scene {
-        // ⚠️ Must be declared BEFORE Settings so that HiddenWindowView's
-        // @Environment(\.openSettings) resolves to the Settings scene below.
-        Window("Hidden", id: "HiddenWindow") {
-            HiddenWindowView()
-        }
-        .windowResizability(.contentSize)
-        .defaultSize(width: 1, height: 1)
-
         MenuBarExtra("Gridwell", systemImage: "rectangle.3.group") {
             Button("Settings…") {
-                NotificationCenter.default.post(name: .openSettingsRequest, object: nil)
+                Task { await openSettingsWindow() }
             }
             .keyboardShortcut(",", modifiers: .command)
 
@@ -219,7 +175,6 @@ struct GridwellApp: App {
             .keyboardShortcut("q", modifiers: .command)
         }
 
-        // Settings scene — must come AFTER the hidden Window scene.
         Settings {
             PreferencesView()
                 .environmentObject(GridConfigStore.shared)

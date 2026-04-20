@@ -17,7 +17,7 @@ You are provided with the basic application template from Xcode.
 **Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, and post-1.0.2 improvements. Current release: v1.0.3.**
 
 ### Architecture
-- `GridwellApp.swift` — SwiftUI `Window` (hidden, 1×1) + `MenuBarExtra` + `Settings` scenes. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). The hidden `Window` scene must be declared before `Settings` so that `@Environment(\.openSettings)` resolves correctly. `HiddenWindowView` receives an `openSettingsRequest` notification, temporarily promotes the app to `.regular` activation policy, activates, calls `openSettings()`, then forces the window to front — the only reliable way to raise a settings window for an `.accessory`-policy app on macOS 15. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
+- `GridwellApp.swift` — `MenuBarExtra` + `Settings` scenes only. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). Settings window is opened via `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` — bypasses the SwiftUI environment entirely. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
 - `AppDelegate.swift` — Requests Accessibility permission on launch (shows alert + opens System Settings if not granted). Starts monitors once trusted. Observes `NSWindow.willCloseNotification` to revert the app to `.accessory` activation policy when the last key window closes.
 - `ModifierKeyMonitor.swift` — Pure state store for trigger detection. Tracks current modifier flags and non-modifier key state. Exposes `handleFlagsChanged(_:CGEvent)`, `handleKeyDown(keyCode:)`, `handleKeyUp(keyCode:)` — called directly by the CGEventTap in `MouseInteractionHandler`. Computes `isTriggerActive` from both modifier and key state against the configured `TriggerShortcut`.
 - `MouseInteractionHandler.swift` — Single `CGEventTap` at `.cgSessionEventTap` / `.headInsertEventTap` covering **all** intercepted event types: `leftMouseDown/Dragged/Up` (drag/resize), `flagsChanged` (modifier tracking, always passed through), `keyDown/keyUp` (key tracking; suppressed if they match the trigger shortcut). This single session-level tap covers both app-active and app-inactive cases. Identifies the target window via `WindowInfoProvider`. Computes candidate frames via `GridSnapper` and forwards them to `WindowManipulator`.
@@ -39,10 +39,10 @@ You are provided with the basic application template from Xcode.
 - **Resize zones**: any of the four edges when the click is within the outer 25 % of the corresponding dimension; corners activate both adjacent edges simultaneously. Centre clicks are move.
 - **Own-window drag**: when the target window belongs to Gridwell's own PID (e.g. the Settings window), `WindowManipulator` uses `NSWindow.setFrame` on the main thread instead of the AX API, which would crash.
 - **Raise on drag**: when enabled (default), the interacted window and its owning app are brought to the front at drag start. Configurable in Behaviour tab.
-- **Settings window activation**: opening settings temporarily promotes the app to `.regular` policy, activates it, calls `openSettings()` via a hidden SwiftUI window, then reverts to `.accessory` when the window closes.
+- **Settings window activation**: opening settings temporarily promotes the app to `.regular` policy, activates it, then opens the settings window via `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` — the standard AppKit selector that SwiftUI's `Settings` scene registers at startup. No hidden window or SwiftUI environment context required.
 - **Sparkle gentle reminders**: background update checks show an "Update Available…" menu item rather than a hidden alert.
 - `CGEvent.location`, `CGWindowListCopyWindowInfo`, and `AXUIElement` position/size all use CoreGraphics coordinates (origin top-left of primary screen, Y down) — no conversion needed between them.
-- `NSScreen` objects are stable singletons per display — `ForEach(id: \.self)` is safe.
+- `NSScreen` identity in `ForEach` uses `displayID` (`CGDirectDisplayID` from `deviceDescription`) — stable across layout passes. Screen list is captured in `@State` on `onAppear` rather than queried directly in `body`.
 
 ## Stages
 1. ✅ Create the basic skeleton framework of the application with these items:
@@ -85,7 +85,7 @@ You are provided with the basic application template from Xcode.
 8. ✅ Post-1.0 refinements (shipped in v1.0.1)
   - Resize from all four window edges (left/top edges added; corners activate both adjacent edges)
   - Smarter grid snap height: cursor position within a row determines 1-cell vs 2-cell span; bottom-edge shortcut for full screen height on 3+ row grids
-  - Settings window now reliably opens in front using activation policy switching and a hidden SwiftUI window for the `openSettings()` environment context
+  - Settings window now reliably opens in front using activation policy switching and `NSApp.sendAction` to trigger the settings window directly
 
 11. ✅ Post-1.0.2 improvements (shipped in v1.0.3)
   - **Check for Updates button in preferences**: "Check for Updates…" button added to the Updates tab in the settings window, alongside the existing automatic-check toggle. Reuses `CheckForUpdatesView` (disabled while a check is already in progress).

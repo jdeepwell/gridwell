@@ -3,6 +3,12 @@ import AppKit
 import Combine
 import Sparkle
 
+private extension NSScreen {
+    var displayID: CGDirectDisplayID {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID) ?? 0
+    }
+}
+
 // MARK: - Root
 
 struct PreferencesView: View {
@@ -28,16 +34,19 @@ struct PreferencesView: View {
 
 private struct GridPreferencesTab: View {
     @EnvironmentObject private var store: GridConfigStore
+    @State private var screens: [NSScreen] = []
 
     var body: some View {
-        let screens = NSScreen.screens
-        return VStack(spacing: 16) {
-            ForEach(screens, id: \.self) { screen in
+        VStack(spacing: 16) {
+            ForEach(screens, id: \.displayID) { screen in
                 ScreenGridRow(screen: screen)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
         .padding()
+        .onAppear {
+            screens = NSScreen.screens
+        }
     }
 }
 
