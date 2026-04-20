@@ -254,9 +254,15 @@ struct GridSnapper {
         // --- X axis ---
         switch zone {
         case .move:
-            // Snap the left edge only when moving.
-            if let snap = nearest(frame.minX, in: xCandidates), snap.dist < threshold {
-                r.origin.x = snap.value
+            // Snap whichever of left/right edge is nearer to a candidate.
+            let snapLeft  = nearest(frame.minX, in: xCandidates)
+            let snapRight = nearest(frame.maxX, in: xCandidates)
+            let leftDist  = snapLeft?.dist  ?? .infinity
+            let rightDist = snapRight?.dist ?? .infinity
+            if leftDist <= rightDist, let s = snapLeft, s.dist < threshold {
+                r.origin.x = s.value
+            } else if let s = snapRight, s.dist < threshold {
+                r.origin.x = s.value - frame.width
             }
         case .resize(let edges):
             if edges.contains(.left),
@@ -281,9 +287,15 @@ struct GridSnapper {
         // --- Y axis ---
         switch zone {
         case .move:
-            // Snap the top edge only when moving.
-            if let snap = nearest(frame.minY, in: yCandidates), snap.dist < threshold {
-                r.origin.y = snap.value
+            // Snap whichever of top/bottom edge is nearer to a candidate.
+            let snapTop    = nearest(frame.minY, in: yCandidates)
+            let snapBottom = nearest(frame.maxY, in: yCandidates)
+            let topDist    = snapTop?.dist    ?? .infinity
+            let bottomDist = snapBottom?.dist ?? .infinity
+            if topDist <= bottomDist, let s = snapTop, s.dist < threshold {
+                r.origin.y = s.value
+            } else if let s = snapBottom, s.dist < threshold {
+                r.origin.y = s.value - frame.height
             }
         case .resize(let edges):
             if edges.contains(.top),
