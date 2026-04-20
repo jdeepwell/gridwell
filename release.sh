@@ -11,10 +11,13 @@
 #          --password "app-specific-password"
 #
 # Usage:
-#   ./release.sh [--clobber] [<path-to-exported-Gridwell.app>]
+#   ./release.sh [--clobber] [--version X.Y.Z] [<path-to-exported-Gridwell.app>]
 #
-#   --clobber   Overwrite an existing GitHub Release with the same tag.
-#               Use when re-releasing the same version (e.g. to replace the DMG).
+#   --clobber        Overwrite an existing GitHub Release with the same tag.
+#                    Use when re-releasing the same version (e.g. to replace the DMG).
+#   --version X.Y.Z  Set the marketing version explicitly. If omitted, the patch
+#                    component of the current version is incremented by 1.
+#                    The build number is always derived from today's date + serial.
 #
 #   If <path-to-exported-Gridwell.app> is omitted, the script archives and
 #   exports the project automatically using xcodebuild.
@@ -42,20 +45,52 @@ SPARKLE_BIN="$HOME/Library/Developer/Xcode/DerivedData/$(ls ~/Library/Developer/
 # ── Argument parsing ──────────────────────────────────────────────────────────
 
 CLOBBER=false
+NEW_VERSION_ARG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --clobber) CLOBBER=true; shift ;;
+        --version) NEW_VERSION_ARG="$2"; shift 2 ;;
         *) break ;;
     esac
 done
 
 if [[ $# -gt 1 ]]; then
-    echo "Usage: $0 [--clobber] [<path-to-Gridwell.app>]"
+    echo "Usage: $0 [--clobber] [--version X.Y.Z] [<path-to-Gridwell.app>]"
     exit 1
 fi
 
-# ── Step 0: Archive and export (when no .app is supplied) ─────────────────────
+# ── Step 0a: Version safety check ────────────────────────────────────────────
+
+if [[ -n "$NEW_VERSION_ARG" ]] && ! $CLOBBER; then
+    PBXPROJ="$SCRIPT_DIR/Gridwell.xcodeproj/project.pbxproj"
+    CURRENT_VERSION=$(grep -m1 'MARKETING_VERSION' "$PBXPROJ" | sed 's/.*= *//;s/;//;s/ *$//')
+
+    _version_int() {
+        IFS='.' read -r a b c <<< "$1"
+        printf "%d%03d%03d" "${a:-0}" "${b:-0}" "${c:-0}"
+    }
+
+    if [[ $(_version_int "$NEW_VERSION_ARG") -le $(_version_int "$CURRENT_VERSION") ]]; then
+        echo "Error: requested version ${NEW_VERSION_ARG} is not greater than current version ${CURRENT_VERSION}."
+        echo "       Add --clobber if you intentionally want to re-release the same version."
+        exit 1
+    fi
+fi
+
+# ── Step 0b: Bump version and build number ────────────────────────────────────
+
+if [[ $# -eq 0 ]]; then
+    echo "==> Bumping version…"
+    if [[ -n "$NEW_VERSION_ARG" ]]; then
+        "$SCRIPT_DIR/bump_version.sh" "$NEW_VERSION_ARG"
+    else
+        "$SCRIPT_DIR/bump_version.sh"
+    fi
+    echo ""
+fi
+
+# ── Step 0b: Archive and export (when no .app is supplied) ────────────────────
 
 if [[ $# -eq 1 ]]; then
     APP_PATH="$1"
@@ -67,15 +102,13 @@ else
     ARCHIVE_PATH="$(mktemp -d)/Gridwell.xcarchive"
     EXPORT_DIR="$(mktemp -d)/GridwellExport"
 
-    _xb() { if command -v xcpretty &>/dev/null; then xcpretty; else cat; fi; }
-
     echo "==> Archiving project…"
     xcodebuild archive \
         -project "$SCRIPT_DIR/Gridwell.xcodeproj" \
         -scheme Gridwell \
         -configuration Release \
         -archivePath "$ARCHIVE_PATH" \
-        | _xb
+        > /dev/null
 
     # Confirm archive was actually created (xcodebuild may exit 0 on failure)
     [[ -d "$ARCHIVE_PATH" ]] || { echo "Error: Archive not found at $ARCHIVE_PATH"; exit 1; }
@@ -85,7 +118,7 @@ else
         -archivePath "$ARCHIVE_PATH" \
         -exportPath "$EXPORT_DIR" \
         -exportOptionsPlist "$SCRIPT_DIR/ExportOptions.plist" \
-        | _xb
+        > /dev/null
 
     APP_PATH="$EXPORT_DIR/Gridwell.app"
     [[ -d "$APP_PATH" ]] || { echo "Error: Exported app not found at $APP_PATH"; exit 1; }

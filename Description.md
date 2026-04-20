@@ -80,7 +80,7 @@ You are provided with the basic application template from Xcode.
   - `release.sh` automates: archive + export via `xcodebuild` (app path optional), Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation (DMG + all `Gridwell${BUILD}-*.delta` files), and appcast commit/push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate). Delta files must be uploaded alongside the DMG or Sparkle raises "improperly signed" errors on update.
   - `make_dmg.sh` creates a styled test DMG without signing/notarization/GitHub upload, and opens it automatically for inspection.
   - `dmg-background.png` provides the drag-to-install background (1152×928 px, displayed at 576×464 pt on Retina).
-  - Versioning uses three-level scheme (major.minor.patch); only `MARKETING_VERSION` in Xcode needs updating between releases
+  - Versioning uses three-level scheme (major.minor.patch). `bump_version.sh` automates version and build number updates; called automatically by `release.sh` before archiving
 
 8. ✅ Post-1.0 refinements (shipped in v1.0.1)
   - Resize from all four window edges (left/top edges added; corners activate both adjacent edges)
@@ -89,7 +89,9 @@ You are provided with the basic application template from Xcode.
 
 11. ✅ Post-1.0.2 improvements (shipped in v1.0.3)
   - **Check for Updates button in preferences**: "Check for Updates…" button added to the Updates tab in the settings window, alongside the existing automatic-check toggle. Reuses `CheckForUpdatesView` (disabled while a check is already in progress).
-  - **Fully automated release pipeline**: `release.sh` now accepts an optional app path. When omitted, it archives and exports the project automatically via `xcodebuild archive` + `xcodebuild -exportArchive`, using `ExportOptions.plist` (Developer ID, team PZ44T4KUAK). `xcpretty` is used for cleaner output when available.
+  - **Fully automated release pipeline**: `release.sh` now accepts an optional app path. When omitted, it archives and exports the project automatically via `xcodebuild archive` + `xcodebuild -exportArchive`, using `ExportOptions.plist` (Developer ID, team PZ44T4KUAK). `xcodebuild` stdout is suppressed; only errors (stderr) are shown.
+  - **Automated version/build number bumping**: `bump_version.sh` reads the current `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` from the Xcode project, increments the patch number (or accepts an explicit version), and sets the build number to `YYYYMMDDss` (today's date + two-digit serial, incremented if already used today). `release.sh` calls it automatically before archiving and accepts a `--version X.Y.Z` flag. A safety check aborts if the requested version is ≤ the current version without `--clobber`.
+  - **Settings window resize fix**: all preference tabs now use `.fixedSize(horizontal: false, vertical: true)` so the window correctly resizes to each tab's content height when switching tabs.
 
 10. ✅ Screen edges as snap targets in window-snap mode
   - In window-snap mode (FN + Shift), all four edges of every connected screen are now treated as snap candidates alongside other window edges. Works correctly with multi-monitor setups.
@@ -120,13 +122,17 @@ Here's how to use release.sh:
 
   Usage
 
-  ./release.sh [--clobber] <path-to-exported-Gridwell.app>
+  ./release.sh [--clobber] [--version X.Y.Z] [<path-to-exported-Gridwell.app>]
 
-  Example:
-  ./release.sh ~/Desktop/Gridwell.app
-  ./release.sh --clobber ~/Desktop/Gridwell.app   # re-release same version
+  Examples:
+  ./release.sh                          # auto-bump patch, archive, and release
+  ./release.sh --version 1.1.0          # release with explicit version
+  ./release.sh --clobber --version 1.0.3  # re-release same version (overwrites GitHub Release)
+  ./release.sh ~/Desktop/Gridwell.app   # use pre-built .app (skips archive + version bump)
 
-  The .app must be an exported archive from Xcode (not the build product). The script reads the version number directly from the app's Info.plist.
+  When no .app is supplied, the script bumps the version/build number automatically
+  (via bump_version.sh) and archives the project. Requesting a version ≤ the current
+  version without --clobber aborts with an error.
 
   What it does
 

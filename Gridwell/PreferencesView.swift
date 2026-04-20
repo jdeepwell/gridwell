@@ -188,7 +188,8 @@ private struct BehaviourTab: View {
             )
         }
         .padding()
-        .frame(minWidth: 520, minHeight: 100)
+        .frame(minWidth: 520)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -240,7 +241,8 @@ private struct KeysTab: View {
             }
         }
         .padding()
-        .frame(minWidth: 520, minHeight: 220)
+        .frame(minWidth: 520)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -431,7 +433,8 @@ private struct UpdatesTab: View {
             CheckForUpdatesView(sparkle: sparkle)
         }
         .padding()
-        .frame(minWidth: 520, minHeight: 100)
+        .frame(minWidth: 520)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
