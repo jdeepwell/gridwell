@@ -33,7 +33,10 @@ class MouseInteractionHandler {
         let eventMask: CGEventMask =
             (1 << CGEventType.leftMouseDown.rawValue)    |
             (1 << CGEventType.leftMouseDragged.rawValue) |
-            (1 << CGEventType.leftMouseUp.rawValue)
+            (1 << CGEventType.leftMouseUp.rawValue)      |
+            (1 << CGEventType.flagsChanged.rawValue)     |
+            (1 << CGEventType.keyDown.rawValue)          |
+            (1 << CGEventType.keyUp.rawValue)
 
         let retained = Unmanaged.passRetained(self)
         selfPtr = retained.toOpaque()
@@ -41,8 +44,8 @@ class MouseInteractionHandler {
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else { return Unmanaged.passRetained(event) }
             let handler = Unmanaged<MouseInteractionHandler>.fromOpaque(userInfo).takeUnretainedValue()
-            // If the system disabled the tap (callback was too slow), re-enable it immediately.
-            if type == .tapDisabledByTimeout {
+            // Re-enable immediately if the system disabled the tap.
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
                 handler.reenableTap()
                 return nil
             }
@@ -102,8 +105,47 @@ class MouseInteractionHandler {
         case .leftMouseDown:    return handleMouseDown(event: event)
         case .leftMouseDragged: return handleMouseDragged(event: event)
         case .leftMouseUp:      return handleMouseUp(event: event)
+        case .flagsChanged:     return handleFlagsChanged(event: event)
+        case .keyDown:          return handleKeyDown(event: event)
+        case .keyUp:            return handleKeyUp(event: event)
         default:                return Unmanaged.passRetained(event)
         }
+    }
+
+    // MARK: - Modifier / key events
+
+    private func handleFlagsChanged(event: CGEvent) -> Unmanaged<CGEvent>? {
+        modifierKeyMonitor.handleFlagsChanged(event)
+        return Unmanaged.passRetained(event)    // modifier changes are never suppressed
+    }
+
+    private func handleKeyDown(event: CGEvent) -> Unmanaged<CGEvent>? {
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        modifierKeyMonitor.handleKeyDown(keyCode: keyCode)
+
+        // Suppress if this keyDown is the non-modifier component of the trigger shortcut
+        // AND the required modifier keys are currently held.
+        let shortcut = gridStore.triggerShortcut
+        guard let requiredKey = shortcut.keyCode, keyCode == requiredKey else {
+            return Unmanaged.passRetained(event)
+        }
+        let eventFlags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+        guard eventFlags.intersection(TriggerShortcut.relevantModifiers).contains(shortcut.modifierFlags) else {
+            return Unmanaged.passRetained(event)
+        }
+        return nil  // suppress: prevent the key from reaching any app
+    }
+
+    private func handleKeyUp(event: CGEvent) -> Unmanaged<CGEvent>? {
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        modifierKeyMonitor.handleKeyUp(keyCode: keyCode)
+
+        // Suppress the keyUp if its keyDown was suppressed (same key code is sufficient).
+        let shortcut = gridStore.triggerShortcut
+        guard let requiredKey = shortcut.keyCode, keyCode == requiredKey else {
+            return Unmanaged.passRetained(event)
+        }
+        return nil  // suppress
     }
 
     // MARK: - Mouse down

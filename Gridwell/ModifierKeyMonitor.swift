@@ -1,54 +1,70 @@
 import AppKit
+import CoreGraphics
 
 class ModifierKeyMonitor {
 
     private(set) var isTriggerActive = false
 
-    private var globalMonitor: Any?
-    private var localMonitor: Any?
+    // Current input state — updated by the CGEventTap in MouseInteractionHandler.
+    private var currentModifierFlags      = NSEvent.ModifierFlags()
+    private var currentNonModifierKeyCode: UInt16? = nil
 
     func start() {
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event)
-        }
-        // Local monitor fires when Gridwell itself is the active app (e.g. Settings window open).
-        // Global monitors are skipped for events in the owning app, so we need both.
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
-            self?.handleFlagsChanged(event)
-            return event    // pass through — do not consume modifier key events
-        }
-        NSLog("[ModifierKeyMonitor] Started — trigger key: %@", GridConfigStore.shared.triggerKey.displayName)
+        NSLog("[ModifierKeyMonitor] Started — event detection via CGEventTap")
     }
 
-    func stop() {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-            globalMonitor = nil
-        }
-        if let monitor = localMonitor {
-            NSEvent.removeMonitor(monitor)
-            localMonitor = nil
-        }
+    // MARK: - CGEventTap callbacks (called from MouseInteractionHandler)
+
+    /// Updates modifier state from a flagsChanged CGEvent and recomputes the trigger.
+    func handleFlagsChanged(_ event: CGEvent) {
+        // CGEventFlags and NSEvent.ModifierFlags share the same bit layout on macOS (64-bit).
+        let flags = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
+        currentModifierFlags = flags.intersection(TriggerShortcut.relevantModifiers)
+        recomputeTrigger()
     }
 
-    /// Clears the trigger state. Call when the app loses focus so a key that was held while
-    /// Gridwell was active does not leave isTriggerActive stale.
+    /// Updates key state for a keyDown event. Only the configured trigger key code is tracked.
+    func handleKeyDown(keyCode: UInt16) {
+        let shortcut = GridConfigStore.shared.triggerShortcut
+        guard let requiredKey = shortcut.keyCode, keyCode == requiredKey else { return }
+        currentNonModifierKeyCode = keyCode
+        recomputeTrigger()
+    }
+
+    /// Clears key state when the tracked key is released.
+    func handleKeyUp(keyCode: UInt16) {
+        guard keyCode == currentNonModifierKeyCode else { return }
+        currentNonModifierKeyCode = nil
+        recomputeTrigger()
+    }
+
+    /// Clears all tracked state. Call as a safety net if event delivery is interrupted.
     func resetTrigger() {
+        currentModifierFlags      = []
+        currentNonModifierKeyCode = nil
         if isTriggerActive {
             isTriggerActive = false
-            NSLog("[ModifierKeyMonitor] Trigger reset on app resign-active")
+            NSLog("[ModifierKeyMonitor] Trigger reset")
         }
     }
 
-    deinit { stop() }
+    // MARK: - Trigger computation
 
-    private func handleFlagsChanged(_ event: NSEvent) {
-        let key = GridConfigStore.shared.triggerKey
+    private func recomputeTrigger() {
+        let shortcut = GridConfigStore.shared.triggerShortcut
+        let modifiersMatch = currentModifierFlags.contains(shortcut.modifierFlags)
+
+        let newActive: Bool
+        if let requiredKey = shortcut.keyCode {
+            newActive = modifiersMatch && currentNonModifierKeyCode == requiredKey
+        } else {
+            newActive = modifiersMatch
+        }
+
         let wasActive = isTriggerActive
-        isTriggerActive = event.modifierFlags.contains(key.nsModifierFlag)
-        if wasActive != isTriggerActive {
-            NSLog("[ModifierKeyMonitor] Trigger key (%@) %@",
-                  key.displayName, isTriggerActive ? "pressed" : "released")
+        isTriggerActive = newActive
+        if wasActive != newActive {
+            NSLog("[ModifierKeyMonitor] Trigger %@", newActive ? "activated" : "deactivated")
         }
     }
 }

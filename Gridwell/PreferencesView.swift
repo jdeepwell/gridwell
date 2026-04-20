@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import Sparkle
 
 // MARK: - Root
@@ -200,15 +201,15 @@ private struct KeysTab: View {
         VStack(spacing: 16) {
             GroupBox("Drag Trigger") {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Hold this key and left-click anywhere in a window to start dragging or resizing.")
+                    Text("Click the shortcut badge, then press the key combination you want to use. Release all keys to confirm.")
                         .foregroundStyle(.secondary)
                         .font(.callout)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    KeyPickerRow(
-                        label: "Trigger key",
-                        selection: Binding(get: { store.triggerKey },
-                                           set: { store.setTriggerKey($0) })
+                    ShortcutRecorderRow(
+                        label: "Trigger shortcut",
+                        shortcut: Binding(get: { store.triggerShortcut },
+                                          set: { store.setTriggerShortcut($0) })
                     )
                 }
                 .padding(6)
@@ -240,6 +241,155 @@ private struct KeysTab: View {
         }
         .padding()
         .frame(minWidth: 520, minHeight: 220)
+    }
+}
+
+// MARK: - Shortcut recorder state
+
+/// Manages recording lifecycle and live display. Class so closures can mutate state
+/// without capturing the (value-type) view struct.
+@MainActor
+private final class RecorderState: ObservableObject {
+    @Published var isRecording = false
+    @Published var live = TriggerShortcut.defaultFN
+
+    private var shortcutBinding: Binding<TriggerShortcut>?
+    private var monitors: [Any] = []
+
+    // Tracks what is currently held during recording.
+    private var currentFlags     = NSEvent.ModifierFlags()
+    private var currentKeyCode:   UInt16? = nil
+    private var currentKeyDisplay: String? = nil
+    // The last non-empty snapshot — committed when all keys are released.
+    private var lastNonEmpty: TriggerShortcut? = nil
+    private var hasInput = false
+
+    func startRecording(updating binding: Binding<TriggerShortcut>) {
+        shortcutBinding  = binding
+        isRecording      = true
+        currentFlags     = []
+        currentKeyCode   = nil
+        currentKeyDisplay = nil
+        lastNonEmpty     = nil
+        hasInput         = false
+        live = TriggerShortcut(modifierFlagsRaw: 0, keyCode: nil, keyDisplayString: nil)
+
+        let m1 = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.onFlagsChanged(event)
+            return event
+        }
+        let m2 = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.onKeyDown(event)
+            return nil  // consume all key events while recording
+        }
+        let m3 = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self] event in
+            self?.onKeyUp(event)
+            return nil
+        }
+        monitors = [m1, m2, m3].compactMap { $0 }
+    }
+
+    func cancel() { tearDown(commit: false) }
+
+    // MARK: - Event handlers (called on main thread by NSEvent monitors)
+
+    private func onFlagsChanged(_ event: NSEvent) {
+        let newFlags = event.modifierFlags.intersection(TriggerShortcut.relevantModifiers)
+        // A modifier was pressed if newFlags contains any bit not in the previous currentFlags.
+        let isPress = !newFlags.subtracting(currentFlags).isEmpty
+        currentFlags = newFlags
+        if !currentFlags.isEmpty { hasInput = true }
+        updateLive(allowSnapshot: isPress)
+        checkAllReleased()
+    }
+
+    private func onKeyDown(_ event: NSEvent) {
+        if event.keyCode == 53 { cancel(); return }     // Escape — cancel without saving
+        currentKeyCode    = event.keyCode
+        currentKeyDisplay = Self.displayString(for: event)
+        hasInput = true
+        updateLive(allowSnapshot: true)     // key press — snapshot is valid
+    }
+
+    private func onKeyUp(_ event: NSEvent) {
+        guard event.keyCode == currentKeyCode else { return }
+        currentKeyCode    = nil
+        currentKeyDisplay = nil
+        updateLive(allowSnapshot: false)    // release — don't overwrite the snapshot
+        checkAllReleased()
+    }
+
+    // MARK: - Helpers
+
+    private func updateLive(allowSnapshot: Bool) {
+        let candidate = TriggerShortcut(
+            modifierFlagsRaw: currentFlags.rawValue,
+            keyCode: currentKeyCode,
+            keyDisplayString: currentKeyDisplay
+        )
+        live = candidate
+        // Only snapshot on press events — releasing keys must not corrupt the stored peak state.
+        if allowSnapshot && !candidate.displayString.isEmpty { lastNonEmpty = candidate }
+    }
+
+    private func checkAllReleased() {
+        guard hasInput, currentFlags.isEmpty, currentKeyCode == nil else { return }
+        tearDown(commit: true)
+    }
+
+    private func tearDown(commit: Bool) {
+        monitors.forEach { NSEvent.removeMonitor($0) }
+        monitors = []
+        isRecording = false
+        if commit, let result = lastNonEmpty {
+            shortcutBinding?.wrappedValue = result
+        }
+        shortcutBinding = nil
+    }
+
+    private static func displayString(for event: NSEvent) -> String {
+        let specialKeys: [UInt16: String] = [
+            36: "↩", 48: "⇥", 49: "Space", 51: "⌫",
+            76: "↩", 117: "⌦", 123: "←", 124: "→", 125: "↓", 126: "↑"
+        ]
+        if let s = specialKeys[event.keyCode] { return s }
+        return event.charactersIgnoringModifiers?.uppercased() ?? "(\(event.keyCode))"
+    }
+}
+
+// MARK: - Shortcut recorder row
+
+private struct ShortcutRecorderRow: View {
+    let label: String
+    @Binding var shortcut: TriggerShortcut
+    @StateObject private var recorder = RecorderState()
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Button {
+                if recorder.isRecording {
+                    recorder.cancel()
+                } else {
+                    recorder.startRecording(updating: $shortcut)
+                }
+            } label: {
+                let display = recorder.isRecording
+                    ? (recorder.live.displayString.isEmpty ? "Recording…" : recorder.live.displayString)
+                    : shortcut.displayString
+                Text(display)
+                    .foregroundStyle(recorder.isRecording ? .red : .primary)
+                    .frame(minWidth: 80, alignment: .center)
+                    .animation(nil, value: display)
+            }
+            .buttonStyle(.bordered)
+
+            if recorder.isRecording {
+                Button("Cancel") { recorder.cancel() }
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

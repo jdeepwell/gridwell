@@ -47,7 +47,8 @@ class GridConfigStore: ObservableObject {
 
     private let userDefaultsKey      = "com.gridwell.gridConfig"
     private let raiseOnDragKey       = "com.gridwell.raiseWindowOnDrag"
-    private let triggerKeyKey        = "com.gridwell.triggerKey"
+    private let triggerShortcutKey   = "com.gridwell.triggerShortcut"
+    private let legacyTriggerKeyKey  = "com.gridwell.triggerKey"   // read-only; used for one-time migration
     private let windowSnapKeyKey     = "com.gridwell.windowSnapKey"
     private let gridSnapKeyKey       = "com.gridwell.gridSnapKey"
 
@@ -57,8 +58,8 @@ class GridConfigStore: ObservableObject {
     /// When true, the interacted window is raised to the front at drag start.
     @Published private(set) var raiseWindowOnDrag: Bool = true
 
-    /// Modifier key that must be held to initiate a drag.
-    @Published private(set) var triggerKey: ModifierKey = .fn
+    /// Key combination that must be held to initiate a drag.
+    @Published private(set) var triggerShortcut: TriggerShortcut = .defaultFN
 
     /// Modifier key held during drag to snap to other window edges.
     @Published private(set) var windowSnapKey: ModifierKey = .shift
@@ -70,9 +71,9 @@ class GridConfigStore: ObservableObject {
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
             raiseWindowOnDrag = saved
         }
-        triggerKey    = loadModifierKey(forKey: triggerKeyKey,    default: .fn)
-        windowSnapKey = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
-        gridSnapKey   = loadModifierKey(forKey: gridSnapKeyKey,   default: .control)
+        triggerShortcut = loadTriggerShortcut()
+        windowSnapKey   = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
+        gridSnapKey     = loadModifierKey(forKey: gridSnapKeyKey,   default: .control)
         load()
     }
 
@@ -81,9 +82,9 @@ class GridConfigStore: ObservableObject {
         UserDefaults.standard.set(value, forKey: raiseOnDragKey)
     }
 
-    func setTriggerKey(_ key: ModifierKey) {
-        triggerKey = key
-        UserDefaults.standard.set(key.rawValue, forKey: triggerKeyKey)
+    func setTriggerShortcut(_ shortcut: TriggerShortcut) {
+        triggerShortcut = shortcut
+        saveTriggerShortcut(shortcut)
     }
 
     func setWindowSnapKey(_ key: ModifierKey) {
@@ -94,6 +95,33 @@ class GridConfigStore: ObservableObject {
     func setGridSnapKey(_ key: ModifierKey) {
         gridSnapKey = key
         UserDefaults.standard.set(key.rawValue, forKey: gridSnapKeyKey)
+    }
+
+    private func loadTriggerShortcut() -> TriggerShortcut {
+        // Try current format first.
+        if let data = UserDefaults.standard.data(forKey: triggerShortcutKey),
+           let decoded = try? JSONDecoder().decode(TriggerShortcut.self, from: data) {
+            return decoded
+        }
+        // One-time migration from the legacy single-ModifierKey format.
+        if let raw = UserDefaults.standard.string(forKey: legacyTriggerKeyKey),
+           let legacy = ModifierKey(rawValue: raw) {
+            let migrated = TriggerShortcut(
+                modifierFlagsRaw: legacy.nsModifierFlag.rawValue,
+                keyCode: nil,
+                keyDisplayString: nil
+            )
+            saveTriggerShortcut(migrated)
+            NSLog("[GridConfigStore] Migrated legacy triggerKey '%@' to TriggerShortcut", raw)
+            return migrated
+        }
+        return .defaultFN
+    }
+
+    private func saveTriggerShortcut(_ shortcut: TriggerShortcut) {
+        if let data = try? JSONEncoder().encode(shortcut) {
+            UserDefaults.standard.set(data, forKey: triggerShortcutKey)
+        }
     }
 
     private func loadModifierKey(forKey key: String, default fallback: ModifierKey) -> ModifierKey {
