@@ -75,7 +75,9 @@ You are provided with the basic application template from Xcode.
   - "Automatically check for updates" toggle in Updates preferences tab
   - Appcast hosted at `https://raw.githubusercontent.com/jdeepwell/gridwell/main/appcast.xml`
   - DMG releases published as GitHub Release assets at `https://github.com/jdeepwell/gridwell`
-  - `release.sh` automates: Sparkle component re-signing, DMG creation, notarization, stapling, appcast generation, GitHub Release creation, and appcast commit/push
+  - `release.sh` automates: Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation, and appcast commit/push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate).
+  - `make_dmg.sh` creates a styled test DMG without signing/notarization/GitHub upload, and opens it automatically for inspection.
+  - `dmg-background.png` provides the drag-to-install background (1152×928 px, displayed at 576×464 pt on Retina).
   - Versioning uses three-level scheme (major.minor.patch); only `MARKETING_VERSION` in Xcode needs updating between releases
 
 8. ✅ Post-1.0 refinements (shipped in v1.0.1)
@@ -109,10 +111,11 @@ Here's how to use release.sh:
 
   Usage
 
-  ./release.sh <path-to-exported-Gridwell.app>
+  ./release.sh [--clobber] <path-to-exported-Gridwell.app>
 
   Example:
   ./release.sh ~/Desktop/Gridwell.app
+  ./release.sh --clobber ~/Desktop/Gridwell.app   # re-release same version
 
   The .app must be an exported archive from Xcode (not the build product). The script reads the version number directly from the app's Info.plist.
 

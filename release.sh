@@ -11,10 +11,10 @@
 #          --password "app-specific-password"
 #
 # Usage:
-#   ./release.sh <path-to-exported-Gridwell.app>
+#   ./release.sh [--clobber] <path-to-exported-Gridwell.app>
 #
-# Example:
-#   ./release.sh ~/Desktop/Gridwell.app
+#   --clobber   Overwrite an existing GitHub Release with the same tag.
+#               Use when re-releasing the same version (e.g. to replace the DMG).
 #
 # Workflow:
 #   1. Creates and notarizes a DMG from the exported .app
@@ -25,6 +25,8 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
 GITHUB_REPO="jdeepwell/gridwell"
@@ -33,10 +35,19 @@ NOTARYTOOL_PROFILE="notarytool-profile"
 
 SPARKLE_BIN="$HOME/Library/Developer/Xcode/DerivedData/$(ls ~/Library/Developer/Xcode/DerivedData | grep '^Gridwell-' | head -1)/SourcePackages/artifacts/sparkle/Sparkle/bin"
 
-# ── Input validation ──────────────────────────────────────────────────────────
+# ── Argument parsing ──────────────────────────────────────────────────────────
+
+CLOBBER=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --clobber) CLOBBER=true; shift ;;
+        *) break ;;
+    esac
+done
 
 if [[ $# -ne 1 ]]; then
-    echo "Usage: $0 <path-to-Gridwell.app>"
+    echo "Usage: $0 [--clobber] <path-to-Gridwell.app>"
     exit 1
 fi
 
@@ -55,24 +66,24 @@ fi
 # ── Derive version from the app bundle ───────────────────────────────────────
 
 PLIST="$APP_PATH/Contents/Info.plist"
-if [[ ! -f "$PLIST" ]]; then
-    PLIST="$APP_PATH/Contents/Resources/Info.plist"
-fi
+[[ ! -f "$PLIST" ]] && PLIST="$APP_PATH/Contents/Resources/Info.plist"
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" "$PLIST")
 BUILD=$(/usr/libexec/PlistBuddy -c "Print CFBundleVersion" "$PLIST")
 TAG="v${VERSION}"
 DMG_NAME="Gridwell-${VERSION}.dmg"
+OUTPUT="$SCRIPT_DIR/releases/${DMG_NAME}"
 DOWNLOAD_URL_PREFIX="https://github.com/${GITHUB_REPO}/releases/download/${TAG}/"
 
 echo "==> Releasing Gridwell ${VERSION} (build ${BUILD})"
 echo "    Tag:      ${TAG}"
 echo "    DMG:      ${DMG_NAME}"
 echo "    Download: ${DOWNLOAD_URL_PREFIX}"
+$CLOBBER && echo "    Mode:     --clobber (overwriting existing release)"
 echo ""
 
 # ── Output directory ──────────────────────────────────────────────────────────
 
-mkdir -p releases
+mkdir -p "$SCRIPT_DIR/releases"
 
 # ── Step 1: Re-sign Sparkle components with your Developer ID ─────────────────
 # Xcode's export does not re-sign Sparkle's pre-built XPC services and helpers.
@@ -112,63 +123,66 @@ codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 # ── Step 2: Create DMG ────────────────────────────────────────────────────────
 
 echo "==> Creating DMG…"
-hdiutil create \
-    -volname "Gridwell ${VERSION}" \
-    -srcfolder "$APP_PATH" \
-    -ov \
-    -format UDZO \
-    "releases/${DMG_NAME}"
+[[ -f "$OUTPUT" ]] && rm "$OUTPUT"
 
-# ── Step 3: Sign the DMG ──────────────────────────────────────────────────────
+create-dmg \
+    --volname "Gridwell ${VERSION}" \
+    --background "$SCRIPT_DIR/dmg-background.png" \
+    --window-pos 200 120 \
+    --window-size 576 464 \
+    --icon-size 100 \
+    --text-size 13 \
+    --icon "Gridwell.app" 160 180 \
+    --hide-extension "Gridwell.app" \
+    --app-drop-link 416 180 \
+    --codesign "$SIGN_IDENTITY" \
+    "$OUTPUT" \
+    "$APP_PATH"
 
-echo "==> Signing DMG…"
-codesign \
-    --sign "$SIGN_IDENTITY" \
-    --timestamp \
-    "releases/${DMG_NAME}"
-
-codesign --verify --verbose "releases/${DMG_NAME}"
-
-# ── Step 4: Notarize ──────────────────────────────────────────────────────────
+# ── Step 3: Notarize ──────────────────────────────────────────────────────────
 
 echo "==> Submitting to Apple notarization (this takes a few minutes)…"
-xcrun notarytool submit "releases/${DMG_NAME}" \
+xcrun notarytool submit "$OUTPUT" \
     --keychain-profile "$NOTARYTOOL_PROFILE" \
     --wait
 
-# ── Step 5: Staple ────────────────────────────────────────────────────────────
+# ── Step 4: Staple ────────────────────────────────────────────────────────────
 
 echo "==> Stapling notarization ticket…"
-xcrun stapler staple "releases/${DMG_NAME}"
-spctl --assess --type open --context context:primary-signature --verbose "releases/${DMG_NAME}"
+xcrun stapler staple "$OUTPUT"
+spctl --assess --type open --context context:primary-signature --verbose "$OUTPUT"
 
-# ── Step 6: Generate appcast ──────────────────────────────────────────────────
+# ── Step 5: Generate appcast ──────────────────────────────────────────────────
 
 echo "==> Generating appcast…"
 "$SPARKLE_BIN/generate_appcast" \
     --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-    releases/
+    "$SCRIPT_DIR/releases/"
 
 # generate_appcast writes appcast.xml into the releases/ folder;
 # move it to the repo root so it is served from the raw.githubusercontent.com URL.
-mv releases/appcast.xml ./appcast.xml
+mv "$SCRIPT_DIR/releases/appcast.xml" "$SCRIPT_DIR/appcast.xml"
 
-# ── Step 7: Commit appcast.xml ────────────────────────────────────────────────
+# ── Step 6: Commit appcast.xml ────────────────────────────────────────────────
 
 echo "==> Committing appcast.xml…"
 git add appcast.xml
 git commit -m "release: update appcast for v${VERSION}"
 
-# ── Step 8: Create GitHub Release and upload DMG ─────────────────────────────
+# ── Step 7: Create GitHub Release and upload DMG ─────────────────────────────
 
 echo "==> Creating GitHub Release ${TAG}…"
+if $CLOBBER; then
+    gh release delete "$TAG" --repo "$GITHUB_REPO" --yes --cleanup-tag=false 2>/dev/null || true
+fi
+
 gh release create "$TAG" \
-    "releases/${DMG_NAME}" \
+    "$OUTPUT" \
     --repo "$GITHUB_REPO" \
     --title "Gridwell ${VERSION}" \
     --notes "See [CHANGELOG](https://github.com/${GITHUB_REPO}/blob/main/CHANGELOG.md) for details."
 
-# ── Step 9: Push appcast.xml ──────────────────────────────────────────────────
+# ── Step 8: Push appcast.xml ──────────────────────────────────────────────────
 
 echo "==> Pushing appcast.xml…"
 git push
