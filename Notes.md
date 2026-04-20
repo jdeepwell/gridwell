@@ -1,4 +1,11 @@
 
+## ToDo
+
+- Granting accessibilityy perms: show window while waiting (screenshot?)
+- Show some window at first launch, teilling the user that it is just a menu item
+- Show the "should I check for updates autom." dialog right on launch
+- Add also "auto install" checkmark to settings
+
 
 ## Filtering Code
 ```swift
