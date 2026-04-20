@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, and post-1.0.1 feature additions. Current release: v1.0.1. Unreleased changes on main.**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, and post-1.0.1 feature additions. Current release: v1.0.2.**
 
 ### Architecture
 - `GridwellApp.swift` — SwiftUI `Window` (hidden, 1×1) + `MenuBarExtra` + `Settings` scenes. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). The hidden `Window` scene must be declared before `Settings` so that `@Environment(\.openSettings)` resolves correctly. `HiddenWindowView` receives an `openSettingsRequest` notification, temporarily promotes the app to `.regular` activation policy, activates, calls `openSettings()`, then forces the window to front — the only reliable way to raise a settings window for an `.accessory`-policy app on macOS 15. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
@@ -83,8 +83,65 @@ You are provided with the basic application template from Xcode.
   - Smarter grid snap height: cursor position within a row determines 1-cell vs 2-cell span; bottom-edge shortcut for full screen height on 3+ row grids
   - Settings window now reliably opens in front using activation policy switching and a hidden SwiftUI window for the `openSettings()` environment context
 
-9. ✅ Post-1.0.1 feature additions (unreleased, on main)
+9. ✅ Post-1.0.1 feature additions (shipped in v1.0.2)
   - **Four-edge window snapping**: when snap-to-windows is active during a move, all four edges of the moved window (left, right, top, bottom) now snap to other window edges — not just left/top. The nearest edge wins.
   - **Drag/resize works when Gridwell is active**: the CGEventTap now covers `flagsChanged`, `keyDown`, and `keyUp` in addition to mouse events, replacing separate NSEvent global/local monitors. This single session-level tap works regardless of which app is frontmost. Own-process windows (e.g. Settings) are moved via `NSWindow.setFrame` since the AX API cannot manipulate the calling app's own windows.
   - **Configurable trigger shortcut**: the trigger is no longer limited to a single modifier key. Users can record any combination of modifiers and optionally a regular key (e.g. ⌃⌥F) via a click-to-record UI in the Keys preferences tab. Non-modifier trigger keys are fully suppressed by the CGEventTap so they do not reach any other application. Snap modifier keys remain single-modifier pickers. Old single-modifier setting is migrated automatically.
 
+## Releasing
+
+The project is on GitHub and releases are also published on GitHub. 
+
+Here's how to use release.sh:
+
+  release.sh — Release Script
+
+  Builds a signed, notarized DMG, updates the Sparkle appcast, and publishes a GitHub Release.
+
+  Prerequisites (one-time setup)
+
+  1. Install the GitHub CLI: brew install gh && gh auth login
+  2. Store Apple notarization credentials:
+  xcrun notarytool store-credentials "notarytool-profile" \
+    --apple-id "your@apple-id.com" \
+    --team-id "PZ44T4KUAK" \
+    --password "app-specific-password"
+
+  Usage
+
+  ./release.sh <path-to-exported-Gridwell.app>
+
+  Example:
+  ./release.sh ~/Desktop/Gridwell.app
+
+  The .app must be an exported archive from Xcode (not the build product). The script reads the version number directly from the app's Info.plist.
+
+  What it does
+
+  ┌──────┬────────────────────────────────────────────────────────────────────┐
+  │ Step │                               Action                               │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 1    │ Re-signs Sparkle's XPC services and helpers with your Developer ID │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 2    │ Creates a compressed DMG in releases/                              │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 3    │ Code-signs the DMG                                                 │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 4    │ Submits the DMG to Apple for notarization (takes a few minutes)    │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 5    │ Staples the notarization ticket to the DMG                         │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 6    │ Runs generate_appcast to produce appcast.xml                       │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 7    │ Commits appcast.xml to the repo                                    │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 8    │ Creates a GitHub Release tagged vX.Y and uploads the DMG           │
+  ├──────┼────────────────────────────────────────────────────────────────────┤
+  │ 9    │ Pushes the appcast.xml commit so the live Sparkle feed updates     │
+  └──────┴────────────────────────────────────────────────────────────────────┘
+
+  Output
+
+  - releases/Gridwell-X.Y.dmg — the distributable installer
+  - appcast.xml — updated Sparkle feed at raw.githubusercontent.com/.../main/appcast.xml
+  
