@@ -145,9 +145,14 @@ struct GridSnapper {
                 xs.append(w.frame.minX); xs.append(w.frame.maxX)
                 ys.append(w.frame.minY); ys.append(w.frame.maxY)
             }
+            for s in NSScreen.screens {
+                let sc = cgFrame(of: s)
+                xs.append(sc.minX); xs.append(sc.maxX)
+                ys.append(sc.minY); ys.append(sc.maxY)
+            }
             xCandidates = xs
             yCandidates = ys
-            threshold = .infinity   // always snap to the nearest window edge
+            threshold = .infinity   // always snap to the nearest window/screen edge
         case .none:
             return candidate
         }

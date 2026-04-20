@@ -85,6 +85,9 @@ You are provided with the basic application template from Xcode.
   - Smarter grid snap height: cursor position within a row determines 1-cell vs 2-cell span; bottom-edge shortcut for full screen height on 3+ row grids
   - Settings window now reliably opens in front using activation policy switching and a hidden SwiftUI window for the `openSettings()` environment context
 
+10. ✅ Screen edges as snap targets in window-snap mode
+  - In window-snap mode (FN + Shift), all four edges of every connected screen are now treated as snap candidates alongside other window edges. Works correctly with multi-monitor setups.
+
 9. ✅ Post-1.0.1 feature additions (shipped in v1.0.2)
   - **Four-edge window snapping**: when snap-to-windows is active during a move, all four edges of the moved window (left, right, top, bottom) now snap to other window edges — not just left/top. The nearest edge wins.
   - **Drag/resize works when Gridwell is active**: the CGEventTap now covers `flagsChanged`, `keyDown`, and `keyUp` in addition to mouse events, replacing separate NSEvent global/local monitors. This single session-level tap works regardless of which app is frontmost. Own-process windows (e.g. Settings) are moved via `NSWindow.setFrame` since the AX API cannot manipulate the calling app's own windows.
