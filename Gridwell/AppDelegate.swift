@@ -4,6 +4,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var modifierKeyMonitor: ModifierKeyMonitor?
     private var mouseInteractionHandler: MouseInteractionHandler?
     private let windowInfoProvider = WindowInfoProvider()
+    private var permissionsWindowController: PermissionsWindowController?
 
     override init() {
         super.init()
@@ -45,7 +46,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func showAccessibilityAlert() {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission Required"
-        alert.informativeText = "Gridwell needs Accessibility access to manage windows.\n\nClick Open Settings to add Gridwell, then relaunch the app."
+        alert.informativeText = "Gridwell needs Accessibility access to manage windows.\n\nClick Open Settings to grant access, then return to Gridwell."
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Quit")
         alert.alertStyle = .warning
@@ -55,8 +56,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if response == .alertFirstButtonReturn {
             let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
             NSWorkspace.shared.open(url)
+
+            let wc = PermissionsWindowController()
+            self.permissionsWindowController = wc
+            Task { @MainActor in
+                await activateAppForUI()
+                wc.showWindow(nil)
+            }
+
+            waitForAccessibilityPermission()
+        } else {
+            NSApp.terminate(nil)
         }
-        NSApp.terminate(nil)
+    }
+
+    private func waitForAccessibilityPermission() {
+        NSLog("[AppDelegate] Waiting for accessibility permission...")
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            if AXIsProcessTrusted() {
+                NSLog("[AppDelegate] Accessibility permission granted")
+                timer.invalidate()
+                self?.permissionsWindowController?.close()
+                self?.permissionsWindowController = nil
+                self?.startMonitoring()
+            }
+        }
     }
 
     private func startMonitoring() {

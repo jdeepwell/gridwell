@@ -17,17 +17,17 @@ func activateAppForUI() async {
 
 // MARK: - Settings opener
 
-@MainActor
-func openSettingsWindow() async {
-    await activateAppForUI()
-    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-    try? await Task.sleep(for: .milliseconds(200))
-    if let window = NSApp.windows.first(where: {
-        $0.identifier?.rawValue == "com.apple.SwiftUI.Settings" ||
-        ($0.isVisible && $0.styleMask.contains(.titled) && $0.canBecomeKey)
-    }) {
-        window.makeKeyAndOrderFront(nil)
-        window.orderFrontRegardless()
+private struct SettingsButton: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button("Settings…") {
+            Task {
+                await activateAppForUI()
+                openSettings()
+            }
+        }
+        .keyboardShortcut(",", modifiers: .command)
     }
 }
 
@@ -142,10 +142,7 @@ struct GridwellApp: App {
 
     var body: some Scene {
         MenuBarExtra("Gridwell", systemImage: "rectangle.3.group") {
-            Button("Settings…") {
-                Task { await openSettingsWindow() }
-            }
-            .keyboardShortcut(",", modifiers: .command)
+            SettingsButton()
 
             Divider()
 
