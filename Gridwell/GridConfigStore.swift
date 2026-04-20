@@ -45,12 +45,24 @@ func defaultRowCount(for screen: NSScreen) -> Int { 1 }
 class GridConfigStore: ObservableObject {
     static let shared = GridConfigStore()
 
-    private let userDefaultsKey      = "com.gridwell.gridConfig"
-    private let raiseOnDragKey       = "com.gridwell.raiseWindowOnDrag"
-    private let triggerShortcutKey   = "com.gridwell.triggerShortcut"
-    private let legacyTriggerKeyKey  = "com.gridwell.triggerKey"   // read-only; used for one-time migration
-    private let windowSnapKeyKey     = "com.gridwell.windowSnapKey"
-    private let gridSnapKeyKey       = "com.gridwell.gridSnapKey"
+    // Current UserDefaults keys
+    private let userDefaultsKey    = "gridConfig"
+    private let raiseOnDragKey     = "raiseWindowOnDrag"
+    private let triggerShortcutKey = "triggerShortcut"
+    private let windowSnapKeyKey   = "windowSnapKey"
+    private let gridSnapKeyKey     = "gridSnapKey"
+    private let settingsVersionKey = "settingsVersion"
+
+    // Legacy keys — used only inside migration functions
+    private let lk_v0_triggerKey          = "com.gridwell.triggerKey"
+    private let lk_v1_settingsVersion     = "com.gridwell.settingsVersion"
+    private let lk_v1_gridConfig          = "com.gridwell.gridConfig"
+    private let lk_v1_raiseWindowOnDrag   = "com.gridwell.raiseWindowOnDrag"
+    private let lk_v1_triggerShortcut     = "com.gridwell.triggerShortcut"
+    private let lk_v1_windowSnapKey       = "com.gridwell.windowSnapKey"
+    private let lk_v1_gridSnapKey         = "com.gridwell.gridSnapKey"
+
+    private static let currentSettingsVersion = 2
 
     /// Maps screen key → grid config. Missing keys fall back to defaults.
     @Published private var config: [String: ScreenGridConfig] = [:]
@@ -68,6 +80,7 @@ class GridConfigStore: ObservableObject {
     @Published private(set) var gridSnapKey: ModifierKey = .control
 
     private init() {
+        runMigrations()
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
             raiseWindowOnDrag = saved
         }
@@ -75,6 +88,64 @@ class GridConfigStore: ObservableObject {
         windowSnapKey   = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
         gridSnapKey     = loadModifierKey(forKey: gridSnapKeyKey,   default: .control)
         load()
+    }
+
+    // MARK: Migrations
+
+    private func runMigrations() {
+        // The version key itself was renamed in v2; check new key first, then old.
+        let stored: Int
+        if UserDefaults.standard.object(forKey: settingsVersionKey) != nil {
+            stored = UserDefaults.standard.integer(forKey: settingsVersionKey)
+        } else if UserDefaults.standard.object(forKey: lk_v1_settingsVersion) != nil {
+            stored = UserDefaults.standard.integer(forKey: lk_v1_settingsVersion)
+        } else {
+            stored = 0
+        }
+        guard stored < Self.currentSettingsVersion else { return }
+
+        if stored < 1 { migrate0to1() }
+        if stored < 2 { migrate1to2() }
+
+        UserDefaults.standard.set(Self.currentSettingsVersion, forKey: settingsVersionKey)
+    }
+
+    /// v0 → v1: migrate legacy single-ModifierKey trigger to TriggerShortcut.
+    /// Writes to the v1 key names (com.gridwell.*); migrate1to2 will rename them.
+    private func migrate0to1() {
+        guard let raw = UserDefaults.standard.string(forKey: lk_v0_triggerKey),
+              let legacy = ModifierKey(rawValue: raw) else { return }
+        let migrated = TriggerShortcut(
+            modifierFlagsRaw: legacy.nsModifierFlag.rawValue,
+            keyCode: nil,
+            keyDisplayString: nil
+        )
+        if let data = try? JSONEncoder().encode(migrated) {
+            UserDefaults.standard.set(data, forKey: lk_v1_triggerShortcut)
+        }
+        NSLog("[GridConfigStore] Migrated legacy triggerKey '%@' to TriggerShortcut", raw)
+        NSLog("[GridConfigStore] Migrated settings from 0 to 1")
+    }
+
+    /// v1 → v2: rename all com.gridwell.* keys to plain names.
+    private func migrate1to2() {
+        let ud = UserDefaults.standard
+        let moves: [(from: String, to: String)] = [
+            (lk_v1_gridConfig,        userDefaultsKey),
+            (lk_v1_raiseWindowOnDrag, raiseOnDragKey),
+            (lk_v1_triggerShortcut,   triggerShortcutKey),
+            (lk_v1_windowSnapKey,     windowSnapKeyKey),
+            (lk_v1_gridSnapKey,       gridSnapKeyKey),
+        ]
+        for (old, new) in moves {
+            if let value = ud.object(forKey: old) {
+                ud.set(value, forKey: new)
+                ud.removeObject(forKey: old)
+            }
+        }
+        ud.removeObject(forKey: lk_v0_triggerKey)
+        ud.removeObject(forKey: lk_v1_settingsVersion)
+        NSLog("[GridConfigStore] Migrated settings from 1 to 2")
     }
 
     func setRaiseWindowOnDrag(_ value: Bool) {
@@ -98,22 +169,9 @@ class GridConfigStore: ObservableObject {
     }
 
     private func loadTriggerShortcut() -> TriggerShortcut {
-        // Try current format first.
         if let data = UserDefaults.standard.data(forKey: triggerShortcutKey),
            let decoded = try? JSONDecoder().decode(TriggerShortcut.self, from: data) {
             return decoded
-        }
-        // One-time migration from the legacy single-ModifierKey format.
-        if let raw = UserDefaults.standard.string(forKey: legacyTriggerKeyKey),
-           let legacy = ModifierKey(rawValue: raw) {
-            let migrated = TriggerShortcut(
-                modifierFlagsRaw: legacy.nsModifierFlag.rawValue,
-                keyCode: nil,
-                keyDisplayString: nil
-            )
-            saveTriggerShortcut(migrated)
-            NSLog("[GridConfigStore] Migrated legacy triggerKey '%@' to TriggerShortcut", raw)
-            return migrated
         }
         return .defaultFN
     }
