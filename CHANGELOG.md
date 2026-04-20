@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2] - 2026-04-20
+
+### Added
+- **Configurable trigger shortcut** — the drag trigger is no longer limited to a single modifier key. Record any combination of modifiers and optionally a regular key (e.g. ⌃⌥F) in the Keys preferences tab. Non-modifier trigger keys are fully suppressed so they do not reach other applications.
+
+### Improved
+- **Drag and resize work when Gridwell is the active app** — interactions now work regardless of which app is frontmost, including when the Gridwell settings window is open.
+- **Four-edge window snapping** — when snap-to-windows is active, all four edges of the moved window snap to nearby window edges; the nearest edge wins.
+- **Versioned settings migrations** — UserDefaults keys are now plain names; existing settings are migrated automatically on first launch.
+
 ## [1.0.1] - 2026-04-15
 
 ### Added
