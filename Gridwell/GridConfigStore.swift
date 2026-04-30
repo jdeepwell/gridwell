@@ -47,11 +47,13 @@ class GridConfigStore: ObservableObject {
 
     // Current UserDefaults keys
     private let userDefaultsKey    = "gridConfig"
-    private let raiseOnDragKey     = "raiseWindowOnDrag"
-    private let triggerShortcutKey = "triggerShortcut"
-    private let windowSnapKeyKey   = "windowSnapKey"
-    private let gridSnapKeyKey     = "gridSnapKey"
-    private let settingsVersionKey = "settingsVersion"
+    private let raiseOnDragKey      = "raiseWindowOnDrag"
+    private let minWindowWidthKey   = "minWindowWidth"
+    private let minWindowHeightKey  = "minWindowHeight"
+    private let triggerShortcutKey  = "triggerShortcut"
+    private let windowSnapKeyKey    = "windowSnapKey"
+    private let gridSnapKeyKey      = "gridSnapKey"
+    private let settingsVersionKey  = "settingsVersion"
 
     // Legacy keys — used only inside migration functions
     private let lk_v0_triggerKey          = "com.gridwell.triggerKey"
@@ -70,6 +72,12 @@ class GridConfigStore: ObservableObject {
     /// When true, the interacted window is raised to the front at drag start.
     @Published private(set) var raiseWindowOnDrag: Bool = true
 
+    /// Minimum window width in points. Windows narrower than this are ignored.
+    @Published private(set) var minWindowWidth: Int = 100
+
+    /// Minimum window height in points. Windows shorter than this are ignored.
+    @Published private(set) var minWindowHeight: Int = 100
+
     /// Key combination that must be held to initiate a drag.
     @Published private(set) var triggerShortcut: TriggerShortcut = .defaultFN
 
@@ -83,6 +91,12 @@ class GridConfigStore: ObservableObject {
         runMigrations()
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
             raiseWindowOnDrag = saved
+        }
+        if let w = UserDefaults.standard.object(forKey: minWindowWidthKey) as? Int {
+            minWindowWidth = w
+        }
+        if let h = UserDefaults.standard.object(forKey: minWindowHeightKey) as? Int {
+            minWindowHeight = h
         }
         triggerShortcut = loadTriggerShortcut()
         windowSnapKey   = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
@@ -151,6 +165,16 @@ class GridConfigStore: ObservableObject {
     func setRaiseWindowOnDrag(_ value: Bool) {
         raiseWindowOnDrag = value
         UserDefaults.standard.set(value, forKey: raiseOnDragKey)
+    }
+
+    func setMinWindowWidth(_ value: Int) {
+        minWindowWidth = value
+        UserDefaults.standard.set(value, forKey: minWindowWidthKey)
+    }
+
+    func setMinWindowHeight(_ value: Int) {
+        minWindowHeight = value
+        UserDefaults.standard.set(value, forKey: minWindowHeightKey)
     }
 
     func setTriggerShortcut(_ shortcut: TriggerShortcut) {

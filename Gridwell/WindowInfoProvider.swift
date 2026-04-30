@@ -21,6 +21,9 @@ class WindowInfoProvider {
     ]
 
     func refresh() {
+        let minWidth  = CGFloat(GridConfigStore.shared.minWindowWidth)
+        let minHeight = CGFloat(GridConfigStore.shared.minWindowHeight)
+
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let rawList = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             NSLog("[WindowInfoProvider] Failed to retrieve window list")
@@ -51,6 +54,10 @@ class WindowInfoProvider {
 
             // Zero-size windows are invisible utility surfaces.
             guard frame.width > 0, frame.height > 0 else { return nil }
+
+            // Skip accessory/panel windows that are too small (e.g. attached palette views).
+            // minWidth/minHeight of 0 disables the filter for that dimension.
+            guard frame.width >= minWidth, frame.height >= minHeight else { return nil }
 
             return WindowInfo(
                 windowID: windowID,

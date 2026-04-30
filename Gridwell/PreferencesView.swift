@@ -195,6 +195,35 @@ private struct BehaviourTab: View {
                     set: { store.setRaiseWindowOnDrag($0) }
                 )
             )
+
+            Section("Minimum Window Size") {
+                HStack(spacing: 8) {
+                    Stepper(
+                        value: Binding(
+                            get: { store.minWindowWidth },
+                            set: { store.setMinWindowWidth($0) }
+                        ),
+                        in: 0...500,
+                        step: 10
+                    ) { EmptyView() }
+                    Text("Minimum width: \(store.minWindowWidth == 0 ? "off" : "\(store.minWindowWidth) pt")")
+                }
+                HStack(spacing: 8) {
+                    Stepper(
+                        value: Binding(
+                            get: { store.minWindowHeight },
+                            set: { store.setMinWindowHeight($0) }
+                        ),
+                        in: 0...500,
+                        step: 10
+                    ) { EmptyView() }
+                    Text("Minimum height: \(store.minWindowHeight == 0 ? "off" : "\(store.minWindowHeight) pt")")
+                }
+                Text("Windows narrower than the minimum width or shorter than the minimum height are ignored. Set to 0 to disable.")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding()
         .frame(minWidth: 520)

@@ -108,6 +108,7 @@ You are provided with the basic application template from Xcode.
 12. ✅ Post-1.0.3 refinements (unreleased)
   - **Accessibility permission flow**: on first launch without accessibility permission, the app shows a modal alert offering "Open Settings" or "Quit". If the user clicks "Open Settings", System Preferences opens to the Accessibility pane and a new waiting window appears (showing `waiting-for-permissions.png` at full @2x Retina resolution plus a Quit button). The app polls `AXIsProcessTrusted()` every 0.5 s; as soon as the user grants permission the waiting window closes and event monitoring starts — no relaunch required.
   - **Settings window fix**: replaced deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` with a `SettingsButton` SwiftUI view that uses `@Environment(\.openSettings)`, eliminating the *"Please use SettingsLink"* runtime warning.
+  - **Minimum window size filter**: accessory windows (palette views, attached panels) that are below a configurable minimum width or height are now excluded from window grabbing. Defaults to 100 × 100 pt. Configurable via two steppers in the Behaviour preferences tab. Setting either value to 0 disables filtering for that dimension. Implemented in `WindowInfoProvider.refresh()` using values from `GridConfigStore`.
 
 ## Releasing
 
