@@ -165,7 +165,7 @@ class MouseInteractionHandler {
         activeWindow       = window
         dragStartMousePos  = location
         dragStartWindowFrame = window.frame
-        dragZone           = GridSnapper.dragZone(at: location, in: window.frame)
+        dragZone           = GridSnapper.dragZone(at: location, in: window.frame, borderWidth: CGFloat(gridStore.resizeBorderWidth))
         otherWindows = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
         windowManipulator.beginDrag(for: window)
 

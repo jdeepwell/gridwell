@@ -39,21 +39,24 @@ struct GridSnapper {
 
     /// Returns the drag zone for a click at `point` inside `windowFrame`.
     ///
-    /// All four edges trigger resize when the click is within the outer 25 % of the
-    /// corresponding dimension.  Clicks in the centre (no edge within threshold) are move.
-    static func dragZone(at point: CGPoint, in windowFrame: CGRect) -> DragZone {
-        let normLeft   = (point.x - windowFrame.minX) / windowFrame.width
-        let normTop    = (point.y - windowFrame.minY) / windowFrame.height
-        let normRight  = (windowFrame.maxX - point.x) / windowFrame.width
-        let normBottom = (windowFrame.maxY - point.y) / windowFrame.height
+    /// Clicks within `borderWidth` points of any edge trigger resize.
+    /// The border is clamped to at most 40 % of the relevant dimension so the
+    /// move zone never disappears on small windows.
+    static func dragZone(at point: CGPoint, in windowFrame: CGRect, borderWidth: CGFloat) -> DragZone {
+        let maxFraction: CGFloat = 0.4
+        let hBorder = min(borderWidth, windowFrame.width  * maxFraction)
+        let vBorder = min(borderWidth, windowFrame.height * maxFraction)
 
-        let threshold: CGFloat = 0.25
+        let distLeft   = point.x - windowFrame.minX
+        let distRight  = windowFrame.maxX - point.x
+        let distTop    = point.y - windowFrame.minY
+        let distBottom = windowFrame.maxY - point.y
 
         var edges = ResizeEdges()
-        if normLeft   < threshold { edges.insert(.left)   }
-        if normTop    < threshold { edges.insert(.top)    }
-        if normRight  < threshold { edges.insert(.right)  }
-        if normBottom < threshold { edges.insert(.bottom) }
+        if distLeft   < hBorder { edges.insert(.left)   }
+        if distRight  < hBorder { edges.insert(.right)  }
+        if distTop    < vBorder { edges.insert(.top)    }
+        if distBottom < vBorder { edges.insert(.bottom) }
 
         return edges.isEmpty ? .move : .resize(edges)
     }

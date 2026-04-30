@@ -223,6 +223,23 @@ private struct BehaviourTab: View {
                     .font(.callout)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            Section("Resize Border") {
+                HStack(spacing: 8) {
+                    Stepper(
+                        value: Binding(
+                            get: { store.resizeBorderWidth },
+                            set: { store.setResizeBorderWidth($0) }
+                        ),
+                        in: 20...400,
+                        step: 10
+                    ) { EmptyView() }
+                    Text("Border width: \(store.resizeBorderWidth) pt")
+                }
+                Text("Clicking within this distance of a window edge starts a resize. Clamped to 40 % of the window dimension on small windows.")
+                    .foregroundStyle(.secondary)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding()
         .frame(minWidth: 520)
