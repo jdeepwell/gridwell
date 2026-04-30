@@ -47,13 +47,14 @@ class GridConfigStore: ObservableObject {
 
     // Current UserDefaults keys
     private let userDefaultsKey    = "gridConfig"
-    private let raiseOnDragKey      = "raiseWindowOnDrag"
-    private let minWindowWidthKey   = "minWindowWidth"
-    private let minWindowHeightKey  = "minWindowHeight"
-    private let triggerShortcutKey  = "triggerShortcut"
-    private let windowSnapKeyKey    = "windowSnapKey"
-    private let gridSnapKeyKey      = "gridSnapKey"
-    private let settingsVersionKey  = "settingsVersion"
+    private let raiseOnDragKey       = "raiseWindowOnDrag"
+    private let minWindowWidthKey    = "minWindowWidth"
+    private let minWindowHeightKey   = "minWindowHeight"
+    private let triggerShortcutKey   = "triggerShortcut"
+    private let windowSnapKeyKey     = "windowSnapKey"
+    private let appWindowSnapKeyKey  = "appWindowSnapKey"
+    private let gridSnapKeyKey       = "gridSnapKey"
+    private let settingsVersionKey   = "settingsVersion"
 
     // Legacy keys — used only inside migration functions
     private let lk_v0_triggerKey          = "com.gridwell.triggerKey"
@@ -81,8 +82,11 @@ class GridConfigStore: ObservableObject {
     /// Key combination that must be held to initiate a drag.
     @Published private(set) var triggerShortcut: TriggerShortcut = .defaultFN
 
-    /// Modifier key held during drag to snap to other window edges.
+    /// Modifier key held during drag to snap to all other window edges.
     @Published private(set) var windowSnapKey: ModifierKey = .shift
+
+    /// Modifier key held during drag to snap to windows of the same application.
+    @Published private(set) var appWindowSnapKey: ModifierKey = .option
 
     /// Modifier key held during drag to snap to the grid.
     @Published private(set) var gridSnapKey: ModifierKey = .control
@@ -98,9 +102,10 @@ class GridConfigStore: ObservableObject {
         if let h = UserDefaults.standard.object(forKey: minWindowHeightKey) as? Int {
             minWindowHeight = h
         }
-        triggerShortcut = loadTriggerShortcut()
-        windowSnapKey   = loadModifierKey(forKey: windowSnapKeyKey, default: .shift)
-        gridSnapKey     = loadModifierKey(forKey: gridSnapKeyKey,   default: .control)
+        triggerShortcut  = loadTriggerShortcut()
+        windowSnapKey    = loadModifierKey(forKey: windowSnapKeyKey,    default: .shift)
+        appWindowSnapKey = loadModifierKey(forKey: appWindowSnapKeyKey, default: .option)
+        gridSnapKey      = loadModifierKey(forKey: gridSnapKeyKey,      default: .control)
         load()
     }
 
@@ -185,6 +190,11 @@ class GridConfigStore: ObservableObject {
     func setWindowSnapKey(_ key: ModifierKey) {
         windowSnapKey = key
         UserDefaults.standard.set(key.rawValue, forKey: windowSnapKeyKey)
+    }
+
+    func setAppWindowSnapKey(_ key: ModifierKey) {
+        appWindowSnapKey = key
+        UserDefaults.standard.set(key.rawValue, forKey: appWindowSnapKeyKey)
     }
 
     func setGridSnapKey(_ key: ModifierKey) {

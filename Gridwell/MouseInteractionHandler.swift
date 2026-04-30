@@ -166,7 +166,7 @@ class MouseInteractionHandler {
         dragStartMousePos  = location
         dragStartWindowFrame = window.frame
         dragZone           = GridSnapper.dragZone(at: location, in: window.frame)
-        otherWindows       = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
+        otherWindows = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
         windowManipulator.beginDrag(for: window)
 
         if gridStore.raiseWindowOnDrag {
@@ -204,18 +204,25 @@ class MouseInteractionHandler {
         )
 
         let snapMode: SnapMode
+        let snapWindows: [WindowInfo]
         let flags = event.flags
-        if flags.contains(gridStore.windowSnapKey.cgEventFlag) {
+        if flags.contains(gridStore.appWindowSnapKey.cgEventFlag) {
             snapMode = .windows
+            snapWindows = otherWindows.filter { $0.pid == activeWindow?.pid }
+        } else if flags.contains(gridStore.windowSnapKey.cgEventFlag) {
+            snapMode = .windows
+            snapWindows = otherWindows
         } else if flags.contains(gridStore.gridSnapKey.cgEventFlag) {
             snapMode = .grid
+            snapWindows = []
         } else {
             snapMode = .none
+            snapWindows = []
         }
 
         let snapped = GridSnapper.snap(
             candidate: candidate,
-            otherWindows: otherWindows,
+            otherWindows: snapWindows,
             zone: dragZone,
             gridStore: gridStore,
             snapMode: snapMode,

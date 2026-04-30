@@ -195,7 +195,6 @@ private struct BehaviourTab: View {
                     set: { store.setRaiseWindowOnDrag($0) }
                 )
             )
-
             Section("Minimum Window Size") {
                 HStack(spacing: 8) {
                     Stepper(
@@ -262,9 +261,17 @@ private struct KeysTab: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     KeyPickerRow(
-                        label: "Snap to windows",
+                        label: "Snap to all windows",
                         selection: Binding(get: { store.windowSnapKey },
                                            set: { store.setWindowSnapKey($0) })
+                    )
+
+                    Divider()
+
+                    KeyPickerRow(
+                        label: "Snap to app windows",
+                        selection: Binding(get: { store.appWindowSnapKey },
+                                           set: { store.setAppWindowSnapKey($0) })
                     )
 
                     Divider()
