@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, and configurable resize border width. Current release: v1.0.4.**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, configurable resize border width, minimum window size filter, and per-app window snapping. Current release: v1.0.5.**
 
 ### Architecture
 - `GridwellApp.swift` — `MenuBarExtra` + `Settings` scenes only. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). Settings window is opened via the private `SettingsButton` view that captures `@Environment(\.openSettings)` — the correct SwiftUI API (macOS 14+); using the deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` selector produces a runtime warning and must be avoided. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
@@ -102,10 +102,10 @@ You are provided with the basic application template from Xcode.
   - **Drag/resize works when Gridwell is active**: the CGEventTap now covers `flagsChanged`, `keyDown`, and `keyUp` in addition to mouse events, replacing separate NSEvent global/local monitors. This single session-level tap works regardless of which app is frontmost. Own-process windows (e.g. Settings) are moved via `NSWindow.setFrame` since the AX API cannot manipulate the calling app's own windows.
   - **Configurable trigger shortcut**: the trigger is no longer limited to a single modifier key. Users can record any combination of modifiers and optionally a regular key (e.g. ⌃⌥F) via a click-to-record UI in the Keys preferences tab. Non-modifier trigger keys are fully suppressed by the CGEventTap so they do not reach any other application. Snap modifier keys remain single-modifier pickers. Old single-modifier setting is migrated automatically.
 
-13. ✅ First-launch onboarding (unreleased)
+13. ✅ First-launch onboarding (shipped in v1.0.5)
   - After accessibility permission is granted, the waiting window transitions in place to a "You're All Set!" screen showing `where-is-gridwell.png` (annotated screenshot pointing to the menu bar icon) with a "Got it" button. Auto-dismisses after 8 seconds. Teaches new users that the app lives in the menu bar without any extra permission prompts.
 
-12. ✅ Post-1.0.3 refinements (unreleased)
+12. ✅ Post-1.0.3 refinements (shipped in v1.0.5)
   - **Accessibility permission flow**: on first launch without accessibility permission, the app shows a modal alert offering "Open Settings" or "Quit". If the user clicks "Open Settings", System Preferences opens to the Accessibility pane and a new waiting window appears (showing `waiting-for-permissions.png` at full @2x Retina resolution plus a Quit button). The app polls `AXIsProcessTrusted()` every 0.5 s; as soon as the user grants permission the waiting window closes and event monitoring starts — no relaunch required.
   - **Settings window fix**: replaced deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` with a `SettingsButton` SwiftUI view that uses `@Environment(\.openSettings)`, eliminating the *"Please use SettingsLink"* runtime warning.
   - **Minimum window size filter**: accessory windows (palette views, attached panels) that are below a configurable minimum width or height are now excluded from window grabbing. Defaults to 100 × 100 pt. Configurable via two steppers in the Behaviour preferences tab. Setting either value to 0 disables filtering for that dimension. Implemented in `WindowInfoProvider.refresh()` using values from `GridConfigStore`.
