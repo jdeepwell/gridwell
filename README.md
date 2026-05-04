@@ -17,8 +17,11 @@ A macOS utility for moving and resizing windows by dragging anywhere in them —
 - **Snap to windows** — hold the window snap modifier (default: Shift) while dragging to align the window's edges with the edges of other on-screen windows.
 - **Snap modifiers work mid-drag** — you can change or release a snap modifier at any point during a drag and the window responds immediately.
 - **Per-screen grids** — configure a different column and row count for each connected display.
-- **Fully configurable modifier keys** — all three modifier keys (trigger, snap-to-windows, snap-to-grid) are set in preferences and persist across launches.
+- **Fully configurable modifier keys** — all four modifier keys (trigger, snap-to-windows, snap-to-same-app-windows, snap-to-grid) are set in preferences and persist across launches.
 - **No title bar required** — works on windows that have non-standard or hidden title bars.
+- **Per-app window snapping** — hold a dedicated modifier (default: Option) to snap only to windows belonging to the same application.
+- **Minimum window size filter** — small accessory windows below a configurable threshold are excluded from drag and resize interactions.
+- **Configurable resize border width** — adjust how wide the edge zone is that triggers a resize rather than a move (default 150 pt).
 - **Raise on drag** — optionally bring the target window and its app to the front when you start dragging (enabled by default).
 
 ## How it works
@@ -38,7 +41,8 @@ While dragging, hold an additional modifier:
 | Modifier (default) | Effect |
 |--------------------|--------|
 | **Control** | Snap to grid — window jumps to a grid cell (see below) |
-| **Shift** | Snap to windows — window edges align with edges of other on-screen windows |
+| **Shift** | Snap to windows — window edges align with edges of all on-screen windows |
+| **Option** | Snap to same-app windows — like Shift, but limited to the same application |
 | *(neither)* | Free movement, no snapping |
 
 Snap modifiers can be held or released at any point during a drag.
@@ -71,11 +75,11 @@ Configure the number of columns and rows for each connected screen. A live previ
 
 ### Behaviour tab
 
-Toggle whether the target window is raised to the front when you start dragging it.
+Configure raise-on-drag, minimum window size (width and height below which windows are excluded from interactions), and the resize border width (how deep the edge zone is that triggers a resize rather than a move).
 
 ### Keys tab
 
-Set the three modifier keys independently using dropdown menus. Available choices for each: FN / Globe (fn), Shift (⇧), Control (⌃), Option (⌥), Command (⌘).
+Set the four modifier keys independently: drag trigger, snap-to-grid, snap-to-all-windows, and snap-to-same-app-windows. Available choices: FN / Globe (fn), Shift (⇧), Control (⌃), Option (⌥), Command (⌘).
 
 <!-- SCREENSHOT: Preferences window open on the Keys tab, showing the "Drag Trigger" GroupBox with a key picker and the "Snap Modifiers" GroupBox with two key pickers. -->
 > **[Screenshot — Preferences → Keys tab]**

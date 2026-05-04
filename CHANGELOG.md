@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.5] - 2026-05-04
+
+### Added
+- **Configurable resize border width** — the width of the edge zone that triggers a resize (default 150 pt) is now configurable in the Behaviour preferences tab. Raise or lower it to suit your workflow.
+- **Minimum window size filter** — small accessory windows (palette views, attached panels) below a configurable minimum width or height are now excluded from drag and resize. Defaults to 100 × 100 pt; configurable in the Behaviour tab. Set either value to 0 to disable filtering for that dimension.
+- **Per-app window snapping** — a new snap modifier (default: Option) snaps only to windows of the same application. The existing window-snap modifier (Shift) continues to snap to all on-screen windows. Both are configurable in the Keys tab.
+
 ## [1.0.4] - 2026-04-20
 
 ### Added
