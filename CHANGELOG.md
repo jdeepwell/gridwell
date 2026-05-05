@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.6] - 2026-05-05
+
+### Improved
+- **Settings refresh** — the Grid, Behaviour, and Keys preferences tabs now use a cleaner card-based layout with clearer hierarchy and spacing.
+- **Behaviour controls** — minimum window size and resize-border width now use sliders with large numeric readouts instead of compact steppers.
+- **Grid configuration** — column and row counts now use discrete sliders, and the grid preview has stronger contrast and clearer cell boundaries.
+- **Release metadata reliability** — Xcode project version metadata, Info.plist values, and release automation now share the same source of truth so future releases keep Xcode and the published app version in sync.
+
 ## [1.0.5] - 2026-05-04
 
 ### Added

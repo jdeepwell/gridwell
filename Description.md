@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, configurable resize border width, minimum window size filter, and per-app window snapping. Current release: v1.0.5.**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, configurable resize border width, minimum window size filter, per-app window snapping, settings UI refresh, and release metadata hardening. Current release: v1.0.5. Unreleased changes are ready for the next release.**
 
 ### Architecture
 - `GridwellApp.swift` — `MenuBarExtra` + `Settings` scenes only. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). Settings window is opened via the private `SettingsButton` view that captures `@Environment(\.openSettings)` — the correct SwiftUI API (macOS 14+); using the deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` selector produces a runtime warning and must be avoided. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
@@ -26,7 +26,8 @@ You are provided with the basic application template from Xcode.
 - `GridConfigStore.swift` — `ObservableObject` singleton. Stores a `[String: ScreenGridConfig]` (columns + rows per screen), `raiseWindowOnDrag: Bool`, `minWindowWidth/Height: Int`, `resizeBorderWidth: Int` (default 150 pt), a `TriggerShortcut` (JSON-encoded), and three `ModifierKey` snap keys in `UserDefaults`. Screen keys use point-space dimensions only (e.g. `"2560x1440"`), falling back to appending origin when two screens share the same size. Uses a versioned migration system: a `settingsVersion` integer in `UserDefaults` tracks the current data structure version; on init, `runMigrations()` runs all pending migrations in sequence. Current version: 2. Migration v0→v1 converts the legacy single-`ModifierKey` trigger to `TriggerShortcut`; migration v1→v2 renames all `com.gridwell.*` keys to plain names.
 - `GridSnapper.swift` — Stateless helpers for drag-zone detection, candidate frame computation, and snapping. Contains `SnapMode` enum (`.none`, `.windows`, `.grid`). When moving with window-snap active, snaps whichever of the window's four edges (left, right, top, bottom) is nearest to a candidate edge — not just left/top. Screen detection for snapping uses the **cursor position** (not the candidate window frame) via `containingScreen(for: CGPoint)`. The `cgFrame` helper converts NSScreen → CG coordinates using `NSScreen.screens.first` (the stable primary display) for the Y-flip height.
 - `ModifierKey.swift` — `ModifierKey` enum (`.fn`, `.shift`, `.control`, `.option`, `.command`) for snap modifier keys. Also contains `TriggerShortcut` struct: `Codable`/`Equatable`, holds `modifierFlagsRaw: UInt` + optional `keyCode: UInt16` + optional `keyDisplayString: String`. Includes `displayString` (e.g. "fn", "⌃⌥F"), `relevantModifiers` constant, and `defaultFN` singleton.
-- `PreferencesView.swift` — Tabbed preferences window (Grid / Behaviour / Keys / Updates). Keys tab: "Drag Trigger" section uses a click-to-record `ShortcutRecorderRow` (backed by `RecorderState: ObservableObject`); "Snap Modifiers" section retains single-modifier pickers. Recorder tracks the last state active before the first key release (snapshots only on press events) so releasing keys in any order commits the correct combination. Escape cancels recording.
+- `PreferencesView.swift` — Tabbed preferences window (Grid / Behaviour / Keys / Updates). Grid, Behaviour, and Keys tabs use a shared card-style SwiftUI layout (`PreferenceCard`, `PreferenceSectionTitle`, shared helper text styling) rather than default `Form`/`GroupBox` presentation. Grid tab uses per-screen cards with higher-contrast grid previews and discrete sliders for column/row counts. Behaviour tab uses card-based switch/slider controls for raise-on-drag, minimum window size, and resize-border width. Keys tab uses cards for drag trigger and snap modifiers; the "Drag Trigger" card uses a click-to-record `ShortcutRecorderRow` (backed by `RecorderState: ObservableObject`), while "Snap Modifiers" retains single-modifier pickers with clearer title/detail rows. Recorder tracks the last state active before the first key release (snapshots only on press events) so releasing keys in any order commits the correct combination. Escape cancels recording.
+- `bump_version.sh` / `release.sh` / `Info.plist` — Version source of truth is the Xcode project build settings: `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`. `Info.plist` uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` placeholders so Xcode's General tab and the built app bundle cannot drift apart. `bump_version.sh` updates the Xcode project directly, validates `X.Y.Z` versions, supports safe `--help`, and sets build numbers using the `YYYYMMDDss` scheme. `release.sh` validates `--version`, auto-bumps when no `.app` path is supplied, and commits the appcast together with version metadata when it performs the bump.
 
 ### Key implementation notes
 - App Sandbox is **disabled** (`ENABLE_APP_SANDBOX = NO`) — required for global event monitoring and window manipulation.
@@ -78,10 +79,10 @@ You are provided with the basic application template from Xcode.
   - Sparkle update windows now reliably open in front: `activateAppForUI()` shared helper promotes to `.regular` policy and activates before any UI is shown; used by both the settings window path and Sparkle's `activateAndCheckForUpdates()`. AppDelegate's existing `NSWindow.willCloseNotification` observer reverts to `.accessory` when all windows close.
   - Appcast hosted at `https://raw.githubusercontent.com/jdeepwell/gridwell/main/appcast.xml`
   - DMG releases published as GitHub Release assets at `https://github.com/jdeepwell/gridwell`
-  - `release.sh` automates: archive + export via `xcodebuild` (app path optional), Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation (DMG + all `Gridwell${BUILD}-*.delta` files), and appcast commit/push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate). Delta files must be uploaded alongside the DMG or Sparkle raises "improperly signed" errors on update.
+  - `release.sh` automates: archive + export via `xcodebuild` (app path optional), Sparkle component re-signing, DMG creation (via `create-dmg` with background image and Applications symlink), notarization, stapling, appcast generation, GitHub Release creation (DMG + all `Gridwell${BUILD}-*.delta` files), and appcast/version-metadata commit + push. Supports `--clobber` flag to overwrite an existing GitHub Release (delete-then-recreate). Delta files must be uploaded alongside the DMG or Sparkle raises "improperly signed" errors on update.
   - `make_dmg.sh` creates a styled test DMG without signing/notarization/GitHub upload, and opens it automatically for inspection.
   - `dmg-background.png` provides the drag-to-install background (1152×928 px, displayed at 576×464 pt on Retina).
-  - Versioning uses three-level scheme (major.minor.patch). `bump_version.sh` automates version and build number updates; called automatically by `release.sh` before archiving
+  - Versioning uses three-level scheme (major.minor.patch). `bump_version.sh` automates version and build number updates by editing Xcode build settings directly; called automatically by `release.sh` before archiving. `Info.plist` references these build settings instead of hardcoding release values.
 
 8. ✅ Post-1.0 refinements (shipped in v1.0.1)
   - Resize from all four window edges (left/top edges added; corners activate both adjacent edges)
@@ -108,8 +109,12 @@ You are provided with the basic application template from Xcode.
 12. ✅ Post-1.0.3 refinements (shipped in v1.0.5)
   - **Accessibility permission flow**: on first launch without accessibility permission, the app shows a modal alert offering "Open Settings" or "Quit". If the user clicks "Open Settings", System Preferences opens to the Accessibility pane and a new waiting window appears (showing `waiting-for-permissions.png` at full @2x Retina resolution plus a Quit button). The app polls `AXIsProcessTrusted()` every 0.5 s; as soon as the user grants permission the waiting window closes and event monitoring starts — no relaunch required.
   - **Settings window fix**: replaced deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` with a `SettingsButton` SwiftUI view that uses `@Environment(\.openSettings)`, eliminating the *"Please use SettingsLink"* runtime warning.
-  - **Minimum window size filter**: accessory windows (palette views, attached panels) that are below a configurable minimum width or height are now excluded from window grabbing. Defaults to 100 × 100 pt. Configurable via two steppers in the Behaviour preferences tab. Setting either value to 0 disables filtering for that dimension. Implemented in `WindowInfoProvider.refresh()` using values from `GridConfigStore`.
+  - **Minimum window size filter**: accessory windows (palette views, attached panels) that are below a configurable minimum width or height are now excluded from window grabbing. Defaults to 100 × 100 pt. Configurable in the Behaviour preferences tab. Setting either value to 0 disables filtering for that dimension. Implemented in `WindowInfoProvider.refresh()` using values from `GridConfigStore`.
   - **Per-modifier app-window snapping**: replaced the "snap to same app only" checkbox with a dedicated `appWindowSnapKey` modifier (default Option). Holding it snaps only to windows of the same application; the existing `windowSnapKey` (Shift) still snaps to all windows. Both are configurable in the Keys tab under "Snap Modifiers". The window list is filtered dynamically per drag event in `MouseInteractionHandler` rather than at drag start.
+
+14. ✅ Unreleased refinements for next release
+  - **Settings UI refresh**: Grid, Behaviour, and Keys preferences now share a cleaner card-based layout. Behaviour uses switch/slider controls with large numeric readouts for minimum window size and resize-border width. Keys uses clearer drag-trigger and snap-modifier cards. Grid uses discrete sliders instead of plus/minus buttons for column/row counts and a darker, higher-contrast grid preview with clearer cell boundaries.
+  - **Version metadata hardening**: Xcode project `MARKETING_VERSION` is synced to the published v1.0.5 release. `Info.plist` now uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` placeholders. `bump_version.sh` validates version input, supports safe `--help`, updates Xcode build settings directly, and preserves the Info.plist placeholders. `release.sh` validates `--version` and commits version metadata with the appcast when it auto-bumps.
 
 ## Releasing
 
@@ -142,7 +147,9 @@ Here's how to use release.sh:
 
   When no .app is supplied, the script bumps the version/build number automatically
   (via bump_version.sh) and archives the project. Requesting a version ≤ the current
-  version without --clobber aborts with an error.
+  version without --clobber aborts with an error. When the script performs the
+  auto-bump, it commits the Xcode project version metadata and Info.plist
+  placeholders together with the updated appcast.
 
   What it does
 
@@ -161,11 +168,11 @@ Here's how to use release.sh:
   ├──────┼────────────────────────────────────────────────────────────────────┤
   │ 6    │ Runs generate_appcast to produce appcast.xml                       │
   ├──────┼────────────────────────────────────────────────────────────────────┤
-  │ 7    │ Commits appcast.xml to the repo                                    │
+  │ 7    │ Commits appcast.xml and version metadata to the repo               │
   ├──────┼────────────────────────────────────────────────────────────────────┤
   │ 8    │ Creates a GitHub Release tagged vX.Y and uploads the DMG           │
   ├──────┼────────────────────────────────────────────────────────────────────┤
-  │ 9    │ Pushes the appcast.xml commit so the live Sparkle feed updates     │
+  │ 9    │ Pushes the release metadata commit so the live Sparkle feed updates│
   └──────┴────────────────────────────────────────────────────────────────────┘
 
   Output

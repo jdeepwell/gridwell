@@ -42,8 +42,10 @@ private struct GridPreferencesTab: View {
                 ScreenGridRow(screen: screen)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
-        .padding()
         .onAppear {
             screens = NSScreen.screens
         }
@@ -60,78 +62,81 @@ private struct ScreenGridRow: View {
     private var rows: Int    { store.rows(for: screen) }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-
-                // Header: display name + native resolution
+        PreferenceCard {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(screen.localizedName)
-                        .fontWeight(.semibold)
+                        .font(.callout.weight(.semibold))
                     Spacer()
                     Text("\(Int(screen.frame.width * screen.backingScaleFactor)) × \(Int(screen.frame.height * screen.backingScaleFactor))")
                         .foregroundStyle(.secondary)
                         .font(.caption)
+                        .monospacedDigit()
                 }
 
-                // Visual grid preview scaled to the screen's aspect ratio
                 GridPreviewShape(columns: columns, rows: rows)
                     .aspectRatio(screen.frame.width / screen.frame.height, contentMode: .fit)
-                    .frame(maxHeight: 90)
-                    .cornerRadius(3)
+                    .frame(maxWidth: 250, maxHeight: 108)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.18))
+                    }
 
-                // Columns stepper
-                CountStepper(
+                GridCountSlider(
                     label: "Columns",
                     value: Binding(get: { columns }, set: { store.setColumns($0, for: screen) }),
                     range: 1...12
                 )
 
-                // Rows stepper
-                CountStepper(
+                GridCountSlider(
                     label: "Rows",
                     value: Binding(get: { rows }, set: { store.setRows($0, for: screen) }),
                     range: 1...8
                 )
             }
-            .padding(6)
         }
     }
 }
 
-// MARK: - Custom stepper
+// MARK: - Grid count slider
 
-private struct CountStepper: View {
+private struct GridCountSlider: View {
     let label: String
     @Binding var value: Int
     let range: ClosedRange<Int>
 
-    var body: some View {
-        HStack {
-            Text(label)
-            Spacer()
-            HStack(spacing: 6) {
-                Button {
-                    if value > range.lowerBound { value -= 1 }
-                } label: {
-                    Image(systemName: "minus")
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.bordered)
-                .disabled(value <= range.lowerBound)
-
-                Text("\(value)")
-                    .monospacedDigit()
-                    .frame(minWidth: 28, alignment: .center)
-
-                Button {
-                    if value < range.upperBound { value += 1 }
-                } label: {
-                    Image(systemName: "plus")
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(.bordered)
-                .disabled(value >= range.upperBound)
+    private var doubleValue: Binding<Double> {
+        Binding(
+            get: { Double(value) },
+            set: { newValue in
+                value = min(max(Int(newValue.rounded()), range.lowerBound), range.upperBound)
             }
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            Text(label)
+                .font(.callout.weight(.semibold))
+                .frame(width: 72, alignment: .leading)
+
+            ZStack {
+                SliderTickMarks(count: range.count)
+                    .padding(.horizontal, 2)
+
+                Slider(value: doubleValue, in: Double(range.lowerBound)...Double(range.upperBound), step: 1)
+                    .controlSize(.small)
+            }
+            .frame(height: 18)
+
+            Text("\(value)")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+                .frame(width: 28, alignment: .trailing)
+                .accessibilityLabel("\(label): \(value)")
         }
     }
 }
@@ -147,34 +152,48 @@ private struct GridPreviewShape: View {
             let colWidth  = size.width  / CGFloat(columns)
             let rowHeight = size.height / CGFloat(rows)
 
-            // Background
+            let rect = CGRect(origin: .zero, size: size)
+            let background = Color(red: 0.10, green: 0.12, blue: 0.14)
+            let alternate = Color(red: 0.13, green: 0.16, blue: 0.19)
+            let majorLine = Color(red: 0.24, green: 0.58, blue: 0.98)
+            let minorLine = Color(red: 0.80, green: 0.88, blue: 0.92)
+
             ctx.fill(
-                Path(CGRect(origin: .zero, size: size)),
-                with: .color(.accentColor.opacity(0.08))
+                Path(rect),
+                with: .color(background)
             )
 
-            // Column dividers
+            for column in 0..<columns {
+                for row in 0..<rows where (column + row).isMultiple(of: 2) {
+                    let cellRect = CGRect(
+                        x: CGFloat(column) * colWidth,
+                        y: CGFloat(row) * rowHeight,
+                        width: colWidth,
+                        height: rowHeight
+                    )
+                    ctx.fill(Path(cellRect), with: .color(alternate))
+                }
+            }
+
             for i in 1..<columns {
                 let x = colWidth * CGFloat(i)
                 var path = Path()
                 path.move(to: CGPoint(x: x, y: 0))
                 path.addLine(to: CGPoint(x: x, y: size.height))
-                ctx.stroke(path, with: .color(.accentColor.opacity(0.45)), lineWidth: 1)
+                ctx.stroke(path, with: .color(majorLine.opacity(0.82)), lineWidth: 1.2)
             }
 
-            // Row dividers
             for i in 1..<rows {
                 let y = rowHeight * CGFloat(i)
                 var path = Path()
                 path.move(to: CGPoint(x: 0, y: y))
                 path.addLine(to: CGPoint(x: size.width, y: y))
-                ctx.stroke(path, with: .color(.accentColor.opacity(0.45)), lineWidth: 1)
+                ctx.stroke(path, with: .color(minorLine.opacity(0.42)), lineWidth: 1)
             }
 
-            // Border
             ctx.stroke(
-                Path(CGRect(origin: .zero, size: size)),
-                with: .color(.secondary.opacity(0.4)),
+                Path(rect.insetBy(dx: 0.5, dy: 0.5)),
+                with: .color(Color.white.opacity(0.28)),
                 lineWidth: 1
             )
         }
@@ -187,63 +206,207 @@ private struct BehaviourTab: View {
     @EnvironmentObject private var store: GridConfigStore
 
     var body: some View {
-        Form {
-            Toggle(
-                "Raise window to front when dragging",
+        VStack(spacing: 16) {
+            PreferenceToggleCard(
+                title: "Raise window to front when dragging",
+                detail: "Bring window forward automatically on drag start",
                 isOn: Binding(
                     get: { store.raiseWindowOnDrag },
                     set: { store.setRaiseWindowOnDrag($0) }
                 )
             )
-            Section("Minimum Window Size") {
-                HStack(spacing: 8) {
-                    Stepper(
-                        value: Binding(
-                            get: { store.minWindowWidth },
-                            set: { store.setMinWindowWidth($0) }
-                        ),
-                        in: 0...500,
-                        step: 10
-                    ) { EmptyView() }
-                    Text("Minimum width: \(store.minWindowWidth == 0 ? "off" : "\(store.minWindowWidth) pt")")
+
+            PreferenceCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    PreferenceSectionTitle("Minimum Window Size")
+
+                    HStack(alignment: .top, spacing: 30) {
+                        PreferenceSliderControl(
+                            label: "Width",
+                            value: Binding(
+                                get: { store.minWindowWidth },
+                                set: { store.setMinWindowWidth($0) }
+                            ),
+                            range: 0...500,
+                            step: 10
+                        )
+
+                        PreferenceSliderControl(
+                            label: "Height",
+                            value: Binding(
+                                get: { store.minWindowHeight },
+                                set: { store.setMinWindowHeight($0) }
+                            ),
+                            range: 0...500,
+                            step: 10
+                        )
+                    }
+
+                    Text("Set to 0 to disable. Windows smaller than these values are ignored.")
+                        .preferenceHelpText()
                 }
-                HStack(spacing: 8) {
-                    Stepper(
-                        value: Binding(
-                            get: { store.minWindowHeight },
-                            set: { store.setMinWindowHeight($0) }
-                        ),
-                        in: 0...500,
-                        step: 10
-                    ) { EmptyView() }
-                    Text("Minimum height: \(store.minWindowHeight == 0 ? "off" : "\(store.minWindowHeight) pt")")
-                }
-                Text("Windows narrower than the minimum width or shorter than the minimum height are ignored. Set to 0 to disable.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
             }
-            Section("Resize Border") {
-                HStack(spacing: 8) {
-                    Stepper(
+
+            PreferenceCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    PreferenceSectionTitle("Resize Border")
+
+                    PreferenceSliderControl(
+                        label: nil,
                         value: Binding(
                             get: { store.resizeBorderWidth },
                             set: { store.setResizeBorderWidth($0) }
                         ),
-                        in: 20...400,
-                        step: 10
-                    ) { EmptyView() }
-                    Text("Border width: \(store.resizeBorderWidth) pt")
+                        range: 20...400,
+                        step: 10,
+                        tickCount: 37
+                    )
+
+                    Text("Click within this distance of a window edge to start a resize. Clamped to 40% of window dimension on small windows.")
+                        .preferenceHelpText()
                 }
-                Text("Clicking within this distance of a window edge starts a resize. Clamped to 40 % of the window dimension on small windows.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding()
-        .frame(minWidth: 520)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+// MARK: - Behaviour controls
+
+private struct PreferenceCard<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.72))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08))
+            }
+    }
+}
+
+private struct PreferenceToggleCard: View {
+    let title: String
+    let detail: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        PreferenceCard {
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.callout.weight(.semibold))
+                    Text(detail)
+                        .preferenceHelpText()
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+            }
+        }
+    }
+}
+
+private struct PreferenceSectionTitle: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+    }
+}
+
+private struct PreferenceSliderControl: View {
+    let label: String?
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    let step: Int
+    var tickCount: Int = 35
+
+    private var doubleValue: Binding<Double> {
+        Binding(
+            get: { Double(value) },
+            set: { newValue in
+                let stepped = (newValue / Double(step)).rounded() * Double(step)
+                value = min(max(Int(stepped), range.lowerBound), range.upperBound)
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 7) {
+                if let label {
+                    Text(label)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                ZStack {
+                    SliderTickMarks(count: tickCount)
+                        .padding(.horizontal, 1)
+                    Slider(value: doubleValue, in: Double(range.lowerBound)...Double(range.upperBound), step: Double(step))
+                        .controlSize(.small)
+                }
+                .frame(height: 18)
+            }
+
+            VStack(spacing: 0) {
+                Text("\(value)")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                Text("pt")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 48)
+            .accessibilityLabel(value == 0 ? "off" : "\(value) points")
+        }
+    }
+}
+
+private struct SliderTickMarks: View {
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(0..<count, id: \.self) { index in
+                Rectangle()
+                    .fill(Color.secondary.opacity(index % 5 == 0 ? 0.5 : 0.28))
+                    .frame(width: 1, height: index % 5 == 0 ? 9 : 6)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .allowsHitTesting(false)
+    }
+}
+
+private extension Text {
+    func preferenceHelpText() -> some View {
+        self
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -254,31 +417,38 @@ private struct KeysTab: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            GroupBox("Drag Trigger") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Click the shortcut badge, then press the key combination you want to use. Release all keys to confirm.")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
+            PreferenceCard {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        PreferenceSectionTitle("Drag Trigger")
+
+                        Text("Start moving or resizing windows")
+                            .font(.callout.weight(.semibold))
+
+                        Text("Click the badge, press a shortcut, then release all keys.")
+                            .preferenceHelpText()
+                    }
+                    .layoutPriority(1)
+
+                    Spacer()
 
                     ShortcutRecorderRow(
-                        label: "Trigger shortcut",
                         shortcut: Binding(get: { store.triggerShortcut },
                                           set: { store.setTriggerShortcut($0) })
                     )
                 }
-                .padding(6)
             }
 
-            GroupBox("Snap Modifiers") {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Hold an additional modifier while dragging to activate snapping.")
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
+            PreferenceCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    PreferenceSectionTitle("Snap Modifiers")
+
+                    Text("Hold one while dragging to choose the snap target.")
+                        .preferenceHelpText()
 
                     KeyPickerRow(
-                        label: "Snap to all windows",
+                        title: "All windows",
+                        detail: "Other apps and screen edges",
                         selection: Binding(get: { store.windowSnapKey },
                                            set: { store.setWindowSnapKey($0) })
                     )
@@ -286,7 +456,8 @@ private struct KeysTab: View {
                     Divider()
 
                     KeyPickerRow(
-                        label: "Snap to app windows",
+                        title: "Same app",
+                        detail: "Only windows from the current app",
                         selection: Binding(get: { store.appWindowSnapKey },
                                            set: { store.setAppWindowSnapKey($0) })
                     )
@@ -294,16 +465,17 @@ private struct KeysTab: View {
                     Divider()
 
                     KeyPickerRow(
-                        label: "Snap to grid",
+                        title: "Grid",
+                        detail: "Personal grid positions",
                         selection: Binding(get: { store.gridSnapKey },
                                            set: { store.setGridSnapKey($0) })
                     )
                 }
-                .padding(6)
             }
         }
-        .padding()
-        .frame(minWidth: 520)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -424,14 +596,11 @@ private final class RecorderState: ObservableObject {
 // MARK: - Shortcut recorder row
 
 private struct ShortcutRecorderRow: View {
-    let label: String
     @Binding var shortcut: TriggerShortcut
     @StateObject private var recorder = RecorderState()
 
     var body: some View {
-        HStack {
-            Text(label)
-            Spacer()
+        HStack(spacing: 8) {
             Button {
                 if recorder.isRecording {
                     recorder.cancel()
@@ -444,13 +613,18 @@ private struct ShortcutRecorderRow: View {
                     : shortcut.displayString
                 Text(display)
                     .foregroundStyle(recorder.isRecording ? .red : .primary)
-                    .frame(minWidth: 80, alignment: .center)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(minWidth: 96, minHeight: 24, alignment: .center)
                     .animation(nil, value: display)
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
+            .help(recorder.isRecording ? "Recording shortcut" : "Record shortcut")
 
             if recorder.isRecording {
                 Button("Cancel") { recorder.cancel() }
+                    .buttonStyle(.borderless)
                     .foregroundStyle(.secondary)
             }
         }
@@ -460,20 +634,33 @@ private struct ShortcutRecorderRow: View {
 // MARK: - Key picker row
 
 private struct KeyPickerRow: View {
-    let label: String
+    let title: String
+    let detail: String
     @Binding var selection: ModifierKey
 
     var body: some View {
-        HStack {
-            Text(label)
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                Text(detail)
+                    .preferenceHelpText()
+                    .lineLimit(1)
+            }
+            .layoutPriority(1)
+
             Spacer()
+
             Picker("", selection: $selection) {
                 ForEach(ModifierKey.allCases, id: \.self) { key in
                     Text(key.symbol + "  " + key.displayName).tag(key)
                 }
             }
             .pickerStyle(.menu)
-            .fixedSize()
+            .labelsHidden()
+            .controlSize(.regular)
+            .frame(width: 138)
         }
     }
 }

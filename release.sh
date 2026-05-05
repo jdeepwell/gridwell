@@ -50,7 +50,18 @@ NEW_VERSION_ARG=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --clobber) CLOBBER=true; shift ;;
-        --version) NEW_VERSION_ARG="$2"; shift 2 ;;
+        --version)
+            if [[ $# -lt 2 || "$2" == -* ]]; then
+                echo "Error: --version requires an X.Y.Z value."
+                exit 1
+            fi
+            NEW_VERSION_ARG="$2"
+            if [[ ! "$NEW_VERSION_ARG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "Error: --version value '${NEW_VERSION_ARG}' is not in X.Y.Z format."
+                exit 1
+            fi
+            shift 2
+            ;;
         *) break ;;
     esac
 done
@@ -80,6 +91,7 @@ fi
 
 # ── Step 0b: Bump version and build number ────────────────────────────────────
 
+DID_BUMP_VERSION=false
 if [[ $# -eq 0 ]]; then
     echo "==> Bumping version…"
     if [[ -n "$NEW_VERSION_ARG" ]]; then
@@ -87,6 +99,7 @@ if [[ $# -eq 0 ]]; then
     else
         "$SCRIPT_DIR/bump_version.sh"
     fi
+    DID_BUMP_VERSION=true
     echo ""
 fi
 
@@ -231,9 +244,14 @@ mv "$SCRIPT_DIR/releases/appcast.xml" "$SCRIPT_DIR/appcast.xml"
 
 # ── Step 6: Commit appcast.xml ────────────────────────────────────────────────
 
-echo "==> Committing appcast.xml…"
-git add appcast.xml
-git commit -m "release: update appcast for v${VERSION}"
+echo "==> Committing release metadata…"
+if $DID_BUMP_VERSION; then
+    git add appcast.xml Gridwell.xcodeproj/project.pbxproj Info.plist
+    git commit -m "release: bump to v${VERSION} and update appcast"
+else
+    git add appcast.xml
+    git commit -m "release: update appcast for v${VERSION}"
+fi
 
 # ── Step 7: Create GitHub Release and upload DMG ─────────────────────────────
 
