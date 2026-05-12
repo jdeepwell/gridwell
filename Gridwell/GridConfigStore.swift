@@ -46,16 +46,17 @@ class GridConfigStore: ObservableObject {
     static let shared = GridConfigStore()
 
     // Current UserDefaults keys
-    private let userDefaultsKey        = "gridConfig"
-    private let raiseOnDragKey         = "raiseWindowOnDrag"
-    private let minWindowWidthKey      = "minWindowWidth"
-    private let minWindowHeightKey     = "minWindowHeight"
-    private let resizeBorderWidthKey   = "resizeBorderWidth"
-    private let triggerShortcutKey     = "triggerShortcut"
-    private let windowSnapKeyKey       = "windowSnapKey"
-    private let appWindowSnapKeyKey    = "appWindowSnapKey"
-    private let gridSnapKeyKey         = "gridSnapKey"
-    private let settingsVersionKey     = "settingsVersion"
+    private let userDefaultsKey            = "gridConfig"
+    private let raiseOnDragKey             = "raiseWindowOnDrag"
+    private let minWindowWidthKey          = "minWindowWidth"
+    private let minWindowHeightKey         = "minWindowHeight"
+    private let resizeBorderPercentKey     = "resizeBorderPercent"
+    private let resizeBorderMinPixelsKey   = "resizeBorderMinPixels"
+    private let triggerShortcutKey         = "triggerShortcut"
+    private let windowSnapKeyKey           = "windowSnapKey"
+    private let appWindowSnapKeyKey        = "appWindowSnapKey"
+    private let gridSnapKeyKey             = "gridSnapKey"
+    private let settingsVersionKey         = "settingsVersion"
 
     // Legacy keys — used only inside migration functions
     private let lk_v0_triggerKey          = "com.gridwell.triggerKey"
@@ -65,8 +66,9 @@ class GridConfigStore: ObservableObject {
     private let lk_v1_triggerShortcut     = "com.gridwell.triggerShortcut"
     private let lk_v1_windowSnapKey       = "com.gridwell.windowSnapKey"
     private let lk_v1_gridSnapKey         = "com.gridwell.gridSnapKey"
+    private let lk_v2_resizeBorderWidth   = "resizeBorderWidth"
 
-    private static let currentSettingsVersion = 2
+    private static let currentSettingsVersion = 3
 
     /// Maps screen key → grid config. Missing keys fall back to defaults.
     @Published private var config: [String: ScreenGridConfig] = [:]
@@ -80,9 +82,12 @@ class GridConfigStore: ObservableObject {
     /// Minimum window height in points. Windows shorter than this are ignored.
     @Published private(set) var minWindowHeight: Int = 100
 
-    /// Width of the resize border in points. Clicks within this distance of any edge trigger resize.
-    /// Clamped to 40 % of the relevant window dimension at runtime.
-    @Published private(set) var resizeBorderWidth: Int = 150
+    /// Resize border as a percentage of the window dimension (0–50 %).
+    /// The effective border is max(dimension × percent, minPixels), clamped to 40 % at runtime.
+    @Published private(set) var resizeBorderPercent: Double = 25.0
+
+    /// Minimum resize border in points. Ensures a usable border on small windows.
+    @Published private(set) var resizeBorderMinPixels: Int = 40
 
     /// Key combination that must be held to initiate a drag.
     @Published private(set) var triggerShortcut: TriggerShortcut = .defaultFN
@@ -107,8 +112,11 @@ class GridConfigStore: ObservableObject {
         if let h = UserDefaults.standard.object(forKey: minWindowHeightKey) as? Int {
             minWindowHeight = h
         }
-        if let b = UserDefaults.standard.object(forKey: resizeBorderWidthKey) as? Int {
-            resizeBorderWidth = b
+        if let p = UserDefaults.standard.object(forKey: resizeBorderPercentKey) as? Double {
+            resizeBorderPercent = p
+        }
+        if let m = UserDefaults.standard.object(forKey: resizeBorderMinPixelsKey) as? Int {
+            resizeBorderMinPixels = m
         }
         triggerShortcut  = loadTriggerShortcut()
         windowSnapKey    = loadModifierKey(forKey: windowSnapKeyKey,    default: .shift)
@@ -133,6 +141,7 @@ class GridConfigStore: ObservableObject {
 
         if stored < 1 { migrate0to1() }
         if stored < 2 { migrate1to2() }
+        if stored < 3 { migrate2to3() }
 
         UserDefaults.standard.set(Self.currentSettingsVersion, forKey: settingsVersionKey)
     }
@@ -175,6 +184,17 @@ class GridConfigStore: ObservableObject {
         NSLog("[GridConfigStore] Migrated settings from 1 to 2")
     }
 
+    /// v2 → v3: replace the single resizeBorderWidth pixel value with percent + minPixels.
+    /// Converts the old pixel value to a reasonable minimum; percent defaults to 25 %.
+    private func migrate2to3() {
+        let ud = UserDefaults.standard
+        if let oldPx = ud.object(forKey: lk_v2_resizeBorderWidth) as? Int {
+            ud.set(oldPx, forKey: resizeBorderMinPixelsKey)
+            ud.removeObject(forKey: lk_v2_resizeBorderWidth)
+        }
+        NSLog("[GridConfigStore] Migrated settings from 2 to 3")
+    }
+
     func setRaiseWindowOnDrag(_ value: Bool) {
         raiseWindowOnDrag = value
         UserDefaults.standard.set(value, forKey: raiseOnDragKey)
@@ -190,9 +210,14 @@ class GridConfigStore: ObservableObject {
         UserDefaults.standard.set(value, forKey: minWindowHeightKey)
     }
 
-    func setResizeBorderWidth(_ value: Int) {
-        resizeBorderWidth = value
-        UserDefaults.standard.set(value, forKey: resizeBorderWidthKey)
+    func setResizeBorderPercent(_ value: Double) {
+        resizeBorderPercent = value
+        UserDefaults.standard.set(value, forKey: resizeBorderPercentKey)
+    }
+
+    func setResizeBorderMinPixels(_ value: Int) {
+        resizeBorderMinPixels = value
+        UserDefaults.standard.set(value, forKey: resizeBorderMinPixelsKey)
     }
 
     func setTriggerShortcut(_ shortcut: TriggerShortcut) {

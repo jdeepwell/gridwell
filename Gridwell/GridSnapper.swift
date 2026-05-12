@@ -39,13 +39,13 @@ struct GridSnapper {
 
     /// Returns the drag zone for a click at `point` inside `windowFrame`.
     ///
-    /// Clicks within `borderWidth` points of any edge trigger resize.
-    /// The border is clamped to at most 40 % of the relevant dimension so the
-    /// move zone never disappears on small windows.
-    static func dragZone(at point: CGPoint, in windowFrame: CGRect, borderWidth: CGFloat) -> DragZone {
+    /// The effective border = max(dimension × borderPercent, borderMinPixels),
+    /// clamped to 40 % of the relevant dimension so the move zone never disappears.
+    static func dragZone(at point: CGPoint, in windowFrame: CGRect,
+                         borderPercent: CGFloat, borderMinPixels: CGFloat) -> DragZone {
         let maxFraction: CGFloat = 0.4
-        let hBorder = min(borderWidth, windowFrame.width  * maxFraction)
-        let vBorder = min(borderWidth, windowFrame.height * maxFraction)
+        let hBorder = min(max(windowFrame.width  * borderPercent, borderMinPixels), windowFrame.width  * maxFraction)
+        let vBorder = min(max(windowFrame.height * borderPercent, borderMinPixels), windowFrame.height * maxFraction)
 
         let distLeft   = point.x - windowFrame.minX
         let distRight  = windowFrame.maxX - point.x

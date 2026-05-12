@@ -251,18 +251,30 @@ private struct BehaviourTab: View {
                 VStack(alignment: .leading, spacing: 16) {
                     PreferenceSectionTitle("Resize Border")
 
-                    PreferenceSliderControl(
-                        label: nil,
-                        value: Binding(
-                            get: { store.resizeBorderWidth },
-                            set: { store.setResizeBorderWidth($0) }
-                        ),
-                        range: 20...400,
-                        step: 10,
-                        tickCount: 37
-                    )
+                    HStack(alignment: .top, spacing: 30) {
+                        PreferencePercentSliderControl(
+                            label: "Percentage",
+                            value: Binding(
+                                get: { store.resizeBorderPercent },
+                                set: { store.setResizeBorderPercent($0) }
+                            ),
+                            range: 1...50,
+                            step: 1
+                        )
 
-                    Text("Click within this distance of a window edge to start a resize. Clamped to 40% of window dimension on small windows.")
+                        PreferenceSliderControl(
+                            label: "Minimum",
+                            value: Binding(
+                                get: { store.resizeBorderMinPixels },
+                                set: { store.setResizeBorderMinPixels($0) }
+                            ),
+                            range: 0...300,
+                            step: 5,
+                            tickCount: 61
+                        )
+                    }
+
+                    Text("Drag zone near a window edge = max(dimension × %, minimum px). Clamped to 40% of window dimension.")
                         .preferenceHelpText()
                 }
             }
@@ -381,6 +393,55 @@ private struct PreferenceSliderControl: View {
             }
             .frame(width: 48)
             .accessibilityLabel(value == 0 ? "off" : "\(value) points")
+        }
+    }
+}
+
+private struct PreferencePercentSliderControl: View {
+    let label: String?
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    var tickCount: Int = 25
+
+    init(label: String?, value: Binding<Double>, range: ClosedRange<Double>, step: Double, tickCount: Int = 25) {
+        self.label = label
+        self._value = value
+        self.range = range
+        self.step = step
+        self.tickCount = tickCount
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 7) {
+                if let label {
+                    Text(label)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+
+                ZStack {
+                    SliderTickMarks(count: tickCount)
+                        .padding(.horizontal, 1)
+                    Slider(value: $value, in: range, step: step)
+                        .controlSize(.small)
+                }
+                .frame(height: 18)
+            }
+
+            VStack(spacing: 0) {
+                Text("\(Int(value))")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                Text("%")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 48)
+            .accessibilityLabel("\(Int(value)) percent")
         }
     }
 }

@@ -14,7 +14,7 @@ You are provided with the basic application template from Xcode.
 
 ## Current Status
 
-**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, configurable resize border width, minimum window size filter, per-app window snapping, settings UI refresh, and release metadata hardening. Current release: v1.0.5. Unreleased changes are ready for the next release.**
+**Completed: Stages 1, 2, 3, 4, 5, 6, menu bar conversion, deployment/distribution, post-1.0 refinements, post-1.0.1 feature additions, post-1.0.2 improvements, post-1.0.3 refinements, first-launch onboarding, configurable resize border width, minimum window size filter, per-app window snapping, settings UI refresh, release metadata hardening, and percentage + minimum-pixel resize border. Current release: v1.0.5. Unreleased changes are ready for the next release.**
 
 ### Architecture
 - `GridwellApp.swift` — `MenuBarExtra` + `Settings` scenes only. App runs as a menu bar agent (`LSUIElement = YES`): no Dock icon, no App Switcher entry. Menu bar icon uses SF Symbol `rectangle.3.group`. Menu contains: Settings… (⌘,), Update Available… (conditional), Check for Updates…, About Gridwell, Quit Gridwell (⌘Q). Settings window is opened via the private `SettingsButton` view that captures `@Environment(\.openSettings)` — the correct SwiftUI API (macOS 14+); using the deprecated `NSApp.sendAction(Selector(("showSettingsWindow:")), ...)` selector produces a runtime warning and must be avoided. `SparkleManager` owns the `SPUStandardUpdaterController` and implements `SPUStandardUserDriverDelegate` for gentle background-update reminders. Settings scene injects `GridConfigStore.shared` and `SparkleManager` as environment objects.
@@ -115,6 +115,7 @@ You are provided with the basic application template from Xcode.
 14. ✅ Unreleased refinements for next release
   - **Settings UI refresh**: Grid, Behaviour, and Keys preferences now share a cleaner card-based layout. Behaviour uses switch/slider controls with large numeric readouts for minimum window size and resize-border width. Keys uses clearer drag-trigger and snap-modifier cards. Grid uses discrete sliders instead of plus/minus buttons for column/row counts and a darker, higher-contrast grid preview with clearer cell boundaries.
   - **Version metadata hardening**: Xcode project `MARKETING_VERSION` is synced to the published v1.0.5 release. `Info.plist` now uses `$(MARKETING_VERSION)` and `$(CURRENT_PROJECT_VERSION)` placeholders. `bump_version.sh` validates version input, supports safe `--help`, updates Xcode build settings directly, and preserves the Info.plist placeholders. `release.sh` validates `--version` and commits version metadata with the appcast when it auto-bumps.
+  - **Percentage + minimum-pixel resize border**: the single resize-border-width setting is replaced by two independent controls — a percentage of the window dimension (1–50 %, default 25 %) and a minimum pixel floor (0–300 pt, default 40 pt). The effective border is `max(dimension × %, minPx)`, still clamped to 40 % on small windows. Settings migration v2→v3 preserves any existing pixel value as the new minimum. Both controls appear side-by-side in the Behaviour tab.
 
 ## Releasing
 
