@@ -141,7 +141,7 @@ struct GridwellApp: App {
     @StateObject private var sparkle = SparkleManager()
 
     var body: some Scene {
-        MenuBarExtra("Gridwell", systemImage: "rectangle.3.group") {
+        MenuBarExtra("Gridwell", image: "MenuExtraIcon") {
             SettingsButton()
 
             Divider()
