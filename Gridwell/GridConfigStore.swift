@@ -52,11 +52,12 @@ class GridConfigStore: ObservableObject {
     private let minWindowHeightKey         = "minWindowHeight"
     private let resizeBorderPercentKey     = "resizeBorderPercent"
     private let resizeBorderMinPixelsKey   = "resizeBorderMinPixels"
-    private let triggerShortcutKey         = "triggerShortcut"
-    private let windowSnapKeyKey           = "windowSnapKey"
-    private let appWindowSnapKeyKey        = "appWindowSnapKey"
-    private let gridSnapKeyKey             = "gridSnapKey"
-    private let settingsVersionKey         = "settingsVersion"
+    private let triggerShortcutKey              = "triggerShortcut"
+    private let windowSnapKeyKey                = "windowSnapKey"
+    private let appWindowSnapKeyKey             = "appWindowSnapKey"
+    private let gridSnapKeyKey                  = "gridSnapKey"
+    private let mouseButtonTriggerKey           = "mouseButtonTrigger"
+    private let settingsVersionKey              = "settingsVersion"
 
     // Legacy keys — used only inside migration functions
     private let lk_v0_triggerKey          = "com.gridwell.triggerKey"
@@ -101,6 +102,10 @@ class GridConfigStore: ObservableObject {
     /// Modifier key held during drag to snap to the grid.
     @Published private(set) var gridSnapKey: ModifierKey = .control
 
+    /// The mouse button number that initiates a drag/resize without a modifier key. nil = disabled.
+    /// Button numbers: 2 = middle, 3 = button 4, 4 = button 5, etc.
+    @Published private(set) var mouseButtonTrigger: Int? = nil
+
     private init() {
         runMigrations()
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
@@ -122,6 +127,7 @@ class GridConfigStore: ObservableObject {
         windowSnapKey    = loadModifierKey(forKey: windowSnapKeyKey,    default: .shift)
         appWindowSnapKey = loadModifierKey(forKey: appWindowSnapKeyKey, default: .option)
         gridSnapKey      = loadModifierKey(forKey: gridSnapKeyKey,      default: .control)
+        mouseButtonTrigger = UserDefaults.standard.object(forKey: mouseButtonTriggerKey) as? Int
         load()
     }
 
@@ -238,6 +244,15 @@ class GridConfigStore: ObservableObject {
     func setGridSnapKey(_ key: ModifierKey) {
         gridSnapKey = key
         UserDefaults.standard.set(key.rawValue, forKey: gridSnapKeyKey)
+    }
+
+    func setMouseButtonTrigger(_ value: Int?) {
+        mouseButtonTrigger = value
+        if let v = value {
+            UserDefaults.standard.set(v, forKey: mouseButtonTriggerKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: mouseButtonTriggerKey)
+        }
     }
 
     private func loadTriggerShortcut() -> TriggerShortcut {

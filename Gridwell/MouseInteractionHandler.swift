@@ -10,8 +10,9 @@ class MouseInteractionHandler {
     private let gridStore = GridConfigStore.shared
 
     // MARK: - Drag session state
-    private var isTracking = false          // true while FN + left mouse button is held
-    private var activeWindow: WindowInfo?   // window being dragged (nil if click landed on nothing)
+    private enum DragSource { case modifierKey, mouseButton }
+    private var dragSource: DragSource? = nil   // non-nil while a drag is in progress
+    private var activeWindow: WindowInfo?        // window being dragged (nil if click landed on nothing)
     private var dragStartMousePos  = CGPoint.zero
     private var dragStartWindowFrame = CGRect.zero
     private var dragZone: DragZone = .move
@@ -30,13 +31,18 @@ class MouseInteractionHandler {
 
     // MARK: - Lifecycle
     func start() {
-        let eventMask: CGEventMask =
-            (1 << CGEventType.leftMouseDown.rawValue)    |
-            (1 << CGEventType.leftMouseDragged.rawValue) |
-            (1 << CGEventType.leftMouseUp.rawValue)      |
-            (1 << CGEventType.flagsChanged.rawValue)     |
-            (1 << CGEventType.keyDown.rawValue)          |
+        let mouseMask: CGEventMask =
+            (1 << CGEventType.leftMouseDown.rawValue)     |
+            (1 << CGEventType.leftMouseDragged.rawValue)  |
+            (1 << CGEventType.leftMouseUp.rawValue)       |
+            (1 << CGEventType.otherMouseDown.rawValue)    |
+            (1 << CGEventType.otherMouseDragged.rawValue) |
+            (1 << CGEventType.otherMouseUp.rawValue)
+        let keyMask: CGEventMask =
+            (1 << CGEventType.flagsChanged.rawValue)      |
+            (1 << CGEventType.keyDown.rawValue)           |
             (1 << CGEventType.keyUp.rawValue)
+        let eventMask: CGEventMask = mouseMask | keyMask
 
         let retained = Unmanaged.passRetained(self)
         selfPtr = retained.toOpaque()
@@ -72,7 +78,7 @@ class MouseInteractionHandler {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
 
-        NSLog("[MouseInteractionHandler] Event tap started — trigger: FN + left mouse button")
+        NSLog("[MouseInteractionHandler] Event tap started — triggers: modifier key or middle mouse button")
     }
 
     func stop() {
@@ -102,13 +108,16 @@ class MouseInteractionHandler {
 
     private func handleCGEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
-        case .leftMouseDown:    return handleMouseDown(event: event)
-        case .leftMouseDragged: return handleMouseDragged(event: event)
-        case .leftMouseUp:      return handleMouseUp(event: event)
-        case .flagsChanged:     return handleFlagsChanged(event: event)
-        case .keyDown:          return handleKeyDown(event: event)
-        case .keyUp:            return handleKeyUp(event: event)
-        default:                return Unmanaged.passRetained(event)
+        case .leftMouseDown:     return handleMouseDown(event: event)
+        case .leftMouseDragged:  return handleMouseDragged(event: event)
+        case .leftMouseUp:       return handleMouseUp(event: event)
+        case .otherMouseDown:    return handleOtherMouseDown(event: event)
+        case .otherMouseDragged: return handleOtherMouseDragged(event: event)
+        case .otherMouseUp:      return handleOtherMouseUp(event: event)
+        case .flagsChanged:      return handleFlagsChanged(event: event)
+        case .keyDown:           return handleKeyDown(event: event)
+        case .keyUp:             return handleKeyUp(event: event)
+        default:                 return Unmanaged.passRetained(event)
         }
     }
 
@@ -148,24 +157,69 @@ class MouseInteractionHandler {
         return nil  // suppress
     }
 
-    // MARK: - Mouse down
+    // MARK: - Modifier key mouse handlers
 
     private func handleMouseDown(event: CGEvent) -> Unmanaged<CGEvent>? {
         guard modifierKeyMonitor.isTriggerActive else { return Unmanaged.passRetained(event) }
+        guard dragSource == nil else { return nil }
+        dragSource = .modifierKey
+        startDragSession(at: event.location)
+        return nil
+    }
 
-        isTracking = true
-        let location = event.location
+    private func handleMouseDragged(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard dragSource == .modifierKey else { return Unmanaged.passRetained(event) }
+        return applyDragUpdate(event: event)
+    }
+
+    private func handleMouseUp(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard dragSource == .modifierKey else { return Unmanaged.passRetained(event) }
+        endDragSession()
+        return nil
+    }
+
+    // MARK: - Middle mouse button handlers
+
+    private func handleOtherMouseDown(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let configured = gridStore.mouseButtonTrigger else { return Unmanaged.passRetained(event) }
+        guard event.getIntegerValueField(.mouseEventButtonNumber) == configured else {
+            return Unmanaged.passRetained(event)
+        }
+        guard dragSource == nil else { return nil }
+        dragSource = .mouseButton
+        startDragSession(at: event.location)
+        return nil
+    }
+
+    private func handleOtherMouseDragged(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard dragSource == .mouseButton else { return Unmanaged.passRetained(event) }
+        return applyDragUpdate(event: event)
+    }
+
+    private func handleOtherMouseUp(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let configured = gridStore.mouseButtonTrigger else { return Unmanaged.passRetained(event) }
+        guard event.getIntegerValueField(.mouseEventButtonNumber) == configured else {
+            return Unmanaged.passRetained(event)
+        }
+        guard dragSource == .mouseButton else { return Unmanaged.passRetained(event) }
+        endDragSession()
+        return nil
+    }
+
+    // MARK: - Shared drag session helpers
+
+    private func startDragSession(at location: CGPoint) {
         windowInfoProvider.refresh()
 
         guard let window = windowInfoProvider.window(at: location) else {
-            NSLog("[MouseInteractionHandler] Mouse down at (%g, %g) — no window found", location.x, location.y)
-            return nil  // FN is held: suppress the click even with no target window
+            NSLog("[MouseInteractionHandler] Down at (%g, %g) — no window found", location.x, location.y)
+            return
         }
 
-        activeWindow       = window
-        dragStartMousePos  = location
+        activeWindow         = window
+        dragStartMousePos    = location
         dragStartWindowFrame = window.frame
-        dragZone           = GridSnapper.dragZone(
+        dragZone             = GridSnapper.dragZone(
             at: location, in: window.frame,
             borderPercent: CGFloat(gridStore.resizeBorderPercent / 100.0),
             borderMinPixels: CGFloat(gridStore.resizeBorderMinPixels)
@@ -185,15 +239,10 @@ class MouseInteractionHandler {
         let title = window.windowName.map { " \"\($0)\"" } ?? ""
         NSLog("[MouseInteractionHandler] Drag started on [%@]%@ zone=%@ frame=%@",
               window.ownerName, title, zoneLabel, NSStringFromRect(window.frame))
-
-        return nil
     }
 
-    // MARK: - Mouse dragged
-
-    private func handleMouseDragged(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard isTracking else { return Unmanaged.passRetained(event) }
-        guard activeWindow != nil else { return nil }   // tracked but no window — just suppress
+    private func applyDragUpdate(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard activeWindow != nil else { return nil }
 
         let location = event.location
         let delta = CGPoint(
@@ -237,16 +286,11 @@ class MouseInteractionHandler {
         return nil
     }
 
-    // MARK: - Mouse up
-
-    private func handleMouseUp(event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard isTracking else { return Unmanaged.passRetained(event) }
-
+    private func endDragSession() {
         NSLog("[MouseInteractionHandler] Drag ended")
-        isTracking   = false
+        dragSource   = nil
         activeWindow = nil
         otherWindows = []
         windowManipulator.endDrag()
-        return nil
     }
 }

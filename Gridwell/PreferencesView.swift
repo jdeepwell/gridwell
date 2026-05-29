@@ -501,6 +501,30 @@ private struct KeysTab: View {
             }
 
             PreferenceCard {
+                HStack(alignment: .center, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        PreferenceSectionTitle("Mouse Button Trigger")
+
+                        Text("Drag or resize using a dedicated mouse button")
+                            .font(.callout.weight(.semibold))
+
+                        Text("Click the badge, then press any extra mouse button.")
+                            .preferenceHelpText()
+                    }
+                    .layoutPriority(1)
+
+                    Spacer()
+
+                    MouseButtonRecorderRow(
+                        buttonNumber: Binding(
+                            get: { store.mouseButtonTrigger },
+                            set: { store.setMouseButtonTrigger($0) }
+                        )
+                    )
+                }
+            }
+
+            PreferenceCard {
                 VStack(alignment: .leading, spacing: 14) {
                     PreferenceSectionTitle("Snap Modifiers")
 
@@ -689,6 +713,99 @@ private struct ShortcutRecorderRow: View {
                     .foregroundStyle(.secondary)
             }
         }
+    }
+}
+
+// MARK: - Mouse button recorder state
+
+@MainActor
+private final class MouseButtonRecorderState: ObservableObject {
+    @Published var isRecording = false
+
+    private var binding: Binding<Int?>?
+    private var monitors: [Any] = []
+
+    func startRecording(updating binding: Binding<Int?>) {
+        self.binding = binding
+        isRecording = true
+
+        // Global monitor catches clicks while another app is focused.
+        let m1 = NSEvent.addGlobalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+            DispatchQueue.main.async { self?.commit(button: event.buttonNumber) }
+        }
+        // Local monitor catches clicks while the settings window is focused.
+        let m2 = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+            self?.commit(button: event.buttonNumber)
+            return event
+        }
+        let m3 = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { self?.cancel() }   // Escape — cancel
+            return event
+        }
+        monitors = [m1, m2, m3].compactMap { $0 }
+    }
+
+    func cancel() { tearDown(save: nil) }
+
+    private func commit(button: Int) {
+        guard isRecording else { return }
+        tearDown(save: button)
+    }
+
+    private func tearDown(save: Int?) {
+        monitors.forEach { NSEvent.removeMonitor($0) }
+        monitors = []
+        isRecording = false
+        if let button = save { binding?.wrappedValue = button }
+        binding = nil
+    }
+}
+
+// MARK: - Mouse button recorder row
+
+private struct MouseButtonRecorderRow: View {
+    @Binding var buttonNumber: Int?
+    @StateObject private var recorder = MouseButtonRecorderState()
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                if recorder.isRecording {
+                    recorder.cancel()
+                } else {
+                    recorder.startRecording(updating: $buttonNumber)
+                }
+            } label: {
+                let display = recorder.isRecording
+                    ? "Press a button…"
+                    : (buttonNumber.map { mouseButtonName($0) } ?? "Disabled")
+                Text(display)
+                    .foregroundStyle(recorder.isRecording ? .red : (buttonNumber == nil ? .secondary : .primary))
+                    .font(.callout.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(minWidth: 96, minHeight: 24, alignment: .center)
+                    .animation(nil, value: display)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .help(recorder.isRecording ? "Press any extra mouse button" : "Record mouse button")
+
+            if recorder.isRecording {
+                Button("Cancel") { recorder.cancel() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            } else if buttonNumber != nil {
+                Button("Disable") { buttonNumber = nil }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            }
+        }
+    }
+
+    private func mouseButtonName(_ button: Int) -> String {
+        button == 2 ? "Middle Button" : "Button \(button + 1)"
     }
 }
 
