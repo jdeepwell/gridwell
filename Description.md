@@ -184,3 +184,4 @@ Here's how to use release.sh:
   - releases/Gridwell-X.Y.dmg — the distributable installer
   - appcast.xml — updated Sparkle feed at raw.githubusercontent.com/.../main/appcast.xml
   
+**IMPORTANT**: Do not forget to also update the changelog before releasing the new version!
