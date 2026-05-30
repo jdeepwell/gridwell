@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.10] - 2026-05-30
+
+### Improved
+- **Grid preview fills card width** — the grid preview in the Grid preferences tab now expands to fill the available width of its card, giving equal padding on all four sides. Ultra-wide monitors (e.g. 5120 × 2160) now show the full-width grid instead of a small centered rectangle with large empty margins.
+
 ## [1.0.9] - 2026-05-30
 
 ### Fixed

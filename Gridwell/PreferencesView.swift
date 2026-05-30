@@ -77,13 +77,12 @@ private struct ScreenGridRow: View {
 
                 GridPreviewShape(columns: columns, rows: rows)
                     .aspectRatio(screen.frame.width / screen.frame.height, contentMode: .fit)
-                    .frame(maxWidth: 250, maxHeight: 108)
-                    .frame(maxWidth: .infinity, alignment: .center)
                     .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .strokeBorder(Color.primary.opacity(0.18))
                     }
+                    .frame(maxWidth: .infinity, maxHeight: 200)
 
                 GridCountSlider(
                     label: "Columns",
