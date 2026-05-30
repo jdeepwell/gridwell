@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.8] - 2026-05-30
+
+### Added
+- **Mouse button app exceptions** — define a list of apps where the mouse button trigger is disabled, so the button's native behaviour (e.g. middle-click auto-scroll in browsers) is preserved. Configurable via a new "Mouse Button Exceptions" card in the Keys preferences tab: click + to pick an app, − to remove it.
+
+## [1.0.7] - 2026-05-30
+
+### Added
+- **Mouse button trigger** — drag and resize windows using a dedicated extra mouse button (middle, back, forward, etc.) without holding any modifier key. Configure it via a click-to-record row in the Keys preferences tab. The keyboard shortcut trigger continues to work independently.
+- **Percentage-based resize border** — the resize border is now defined as a percentage of the window dimension (1–50 %, default 25 %) plus a minimum pixel floor (0–300 pt, default 40 pt). The effective border is `max(dimension × %, minimum px)`.
+
+### Improved
+- **Custom menu bar icon** — the menu bar now shows a custom Gridwell icon instead of a generic SF Symbol.
+
 ## [1.0.6] - 2026-05-05
 
 ### Improved
