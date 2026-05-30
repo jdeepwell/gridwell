@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import Combine
 import Sparkle
+import UniformTypeIdentifiers
 
 private extension NSScreen {
     var displayID: CGDirectDisplayID {
@@ -524,6 +525,8 @@ private struct KeysTab: View {
                 }
             }
 
+            MouseButtonExceptionsCard()
+
             PreferenceCard {
                 VStack(alignment: .leading, spacing: 14) {
                     PreferenceSectionTitle("Snap Modifiers")
@@ -806,6 +809,137 @@ private struct MouseButtonRecorderRow: View {
 
     private func mouseButtonName(_ button: Int) -> String {
         button == 2 ? "Middle Button" : "Button \(button + 1)"
+    }
+}
+
+// MARK: - Mouse button exceptions card
+
+private struct MouseButtonExceptionsCard: View {
+    @EnvironmentObject private var store: GridConfigStore
+
+    var body: some View {
+        PreferenceCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    PreferenceSectionTitle("Mouse Button Exceptions")
+                    Spacer()
+                    Button {
+                        pickApp()
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Add an app where the mouse button trigger is disabled")
+                }
+
+                if store.mouseButtonExcludedApps.isEmpty {
+                    Text("No exceptions. The mouse button trigger is active in all apps.")
+                        .preferenceHelpText()
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(store.mouseButtonExcludedApps) { app in
+                            ExcludedAppRow(app: app) {
+                                var updated = store.mouseButtonExcludedApps
+                                updated.removeAll { $0.bundleID == app.bundleID }
+                                store.setMouseButtonExcludedApps(updated)
+                            }
+                            if app.id != store.mouseButtonExcludedApps.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                    .background {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(Color.primary.opacity(0.06))
+                    }
+
+                    Text("In these apps, the mouse button trigger is disabled and the original button behavior is preserved.")
+                        .preferenceHelpText()
+                }
+            }
+        }
+    }
+
+    private func pickApp() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.prompt = "Add Exception"
+
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let bundle = Bundle(url: url)
+        guard let bundleID = bundle?.bundleIdentifier else { return }
+
+        // Avoid duplicates.
+        guard !store.mouseButtonExcludedApps.contains(where: { $0.bundleID == bundleID }) else { return }
+
+        let name = (bundle?.localizedInfoDictionary?["CFBundleDisplayName"]
+            ?? bundle?.infoDictionary?["CFBundleDisplayName"]
+            ?? bundle?.infoDictionary?["CFBundleName"]
+            ?? url.deletingPathExtension().lastPathComponent) as? String
+            ?? url.deletingPathExtension().lastPathComponent
+
+        var updated = store.mouseButtonExcludedApps
+        updated.append(ExcludedApp(bundleID: bundleID, name: name))
+        updated.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        store.setMouseButtonExcludedApps(updated)
+    }
+}
+
+private struct ExcludedAppRow: View {
+    let app: ExcludedApp
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            AppIconView(bundleID: app.bundleID)
+                .frame(width: 20, height: 20)
+
+            Text(app.name)
+                .font(.callout)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button {
+                onRemove()
+            } label: {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(.borderless)
+            .help("Remove \(app.name) from exceptions")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+    }
+}
+
+private struct AppIconView: NSViewRepresentable {
+    let bundleID: String
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.imageScaling = .scaleProportionallyUpOrDown
+        return view
+    }
+
+    func updateNSView(_ nsView: NSImageView, context: Context) {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            nsView.image = NSWorkspace.shared.icon(forFile: url.path)
+        } else {
+            nsView.image = NSWorkspace.shared.icon(for: .applicationBundle)
+        }
     }
 }
 

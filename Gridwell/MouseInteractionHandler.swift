@@ -185,10 +185,35 @@ class MouseInteractionHandler {
         guard event.getIntegerValueField(.mouseEventButtonNumber) == configured else {
             return Unmanaged.passRetained(event)
         }
+        if isMouseButtonExcluded(at: event.location) { return Unmanaged.passRetained(event) }
         guard dragSource == nil else { return nil }
         dragSource = .mouseButton
         startDragSession(at: event.location)
         return nil
+    }
+
+    /// Returns true if the topmost window at `location` belongs to an app in the exclusion list.
+    private func isMouseButtonExcluded(at location: CGPoint) -> Bool {
+        guard !gridStore.mouseButtonExcludedApps.isEmpty else { return false }
+        let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return false
+        }
+        for dict in list {
+            guard (dict[kCGWindowLayer as String] as? Int) == 0 else { continue }
+            guard (dict[kCGWindowAlpha as String] as? Double ?? 0) > 0 else { continue }
+            guard
+                let pidRaw = dict[kCGWindowOwnerPID as String] as? Int32,
+                let boundsRef = dict[kCGWindowBounds as String],
+                let frame = CGRect(dictionaryRepresentation: boundsRef as! CFDictionary),
+                frame.contains(location)
+            else { continue }
+            guard let bundleID = NSRunningApplication(processIdentifier: pidRaw)?.bundleIdentifier else {
+                continue
+            }
+            return gridStore.isMouseButtonExcluded(bundleID: bundleID)
+        }
+        return false
     }
 
     private func handleOtherMouseDragged(event: CGEvent) -> Unmanaged<CGEvent>? {

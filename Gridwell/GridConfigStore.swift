@@ -1,6 +1,16 @@
 import AppKit
 import Combine
 
+// MARK: - Excluded app
+
+/// An app excluded from the mouse button trigger. Bundle ID is the stable key;
+/// name is stored alongside so the list renders correctly even when the app isn't running.
+struct ExcludedApp: Codable, Equatable, Identifiable {
+    var id: String { bundleID }
+    let bundleID: String
+    let name: String
+}
+
 // MARK: - Per-screen grid config
 
 struct ScreenGridConfig: Codable {
@@ -57,6 +67,7 @@ class GridConfigStore: ObservableObject {
     private let appWindowSnapKeyKey             = "appWindowSnapKey"
     private let gridSnapKeyKey                  = "gridSnapKey"
     private let mouseButtonTriggerKey           = "mouseButtonTrigger"
+    private let mouseButtonExcludedAppsKey      = "mouseButtonExcludedApps"
     private let settingsVersionKey              = "settingsVersion"
 
     // Legacy keys — used only inside migration functions
@@ -106,6 +117,9 @@ class GridConfigStore: ObservableObject {
     /// Button numbers: 2 = middle, 3 = button 4, 4 = button 5, etc.
     @Published private(set) var mouseButtonTrigger: Int? = nil
 
+    /// Apps in which the mouse button trigger is disabled. Keyed by bundle identifier.
+    @Published private(set) var mouseButtonExcludedApps: [ExcludedApp] = []
+
     private init() {
         runMigrations()
         if let saved = UserDefaults.standard.object(forKey: raiseOnDragKey) as? Bool {
@@ -128,6 +142,7 @@ class GridConfigStore: ObservableObject {
         appWindowSnapKey = loadModifierKey(forKey: appWindowSnapKeyKey, default: .option)
         gridSnapKey      = loadModifierKey(forKey: gridSnapKeyKey,      default: .control)
         mouseButtonTrigger = UserDefaults.standard.object(forKey: mouseButtonTriggerKey) as? Int
+        mouseButtonExcludedApps = loadExcludedApps()
         load()
     }
 
@@ -253,6 +268,24 @@ class GridConfigStore: ObservableObject {
         } else {
             UserDefaults.standard.removeObject(forKey: mouseButtonTriggerKey)
         }
+    }
+
+    func setMouseButtonExcludedApps(_ apps: [ExcludedApp]) {
+        mouseButtonExcludedApps = apps
+        if let data = try? JSONEncoder().encode(apps) {
+            UserDefaults.standard.set(data, forKey: mouseButtonExcludedAppsKey)
+        }
+    }
+
+    func isMouseButtonExcluded(bundleID: String) -> Bool {
+        mouseButtonExcludedApps.contains { $0.bundleID == bundleID }
+    }
+
+    private func loadExcludedApps() -> [ExcludedApp] {
+        guard let data = UserDefaults.standard.data(forKey: mouseButtonExcludedAppsKey),
+              let decoded = try? JSONDecoder().decode([ExcludedApp].self, from: data)
+        else { return [] }
+        return decoded
     }
 
     private func loadTriggerShortcut() -> TriggerShortcut {
