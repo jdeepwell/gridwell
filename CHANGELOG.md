@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.0.9] - 2026-05-30
+
+### Fixed
+- **Sparkle "Ready to Install" panel now opens in front** — when Sparkle transitions from the download progress window to the "Install and Relaunch" panel, the new window now reliably appears in front of other apps instead of opening in the background.
+
 ## [1.0.8] - 2026-05-30
 
 ### Added

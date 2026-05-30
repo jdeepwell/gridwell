@@ -29,6 +29,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+
+        // Sparkle transitions between windows mid-session (e.g. download progress → "Ready to
+        // Install"). The close of the first window reverts us to .accessory before the next one
+        // opens, so the new window lands in the background. Re-activate whenever any of our own
+        // windows becomes key while the app is in .accessory mode.
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            guard NSApp.activationPolicy() == .accessory else { return }
+            Task { await activateAppForUI() }
+        }
     }
 
     private func requestAccessibilityPermissions() {
