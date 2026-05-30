@@ -3,19 +3,27 @@
     <channel>
         <title>Gridwell</title>
         <item>
+            <title>1.0.10</title>
+            <pubDate>Sat, 30 May 2026 20:03:50 +0200</pubDate>
+            <sparkle:version>2026053003</sparkle:version>
+            <sparkle:shortVersionString>1.0.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell-1.0.10.dmg" length="5810902" type="application/octet-stream" sparkle:edSignature="6HMLnQTlcqtzkd+Rhxj4coHZyjZ9Gb0v7C1R0Iq/xPAsr9TIB3d59hBVba/xcS2BTiTVMe4Db1b3pHgIVbktDA=="/>
+            <sparkle:deltas>
+                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell2026053003-2026053002.delta" sparkle:deltaFrom="2026053002" length="41946" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="tIvXNYiLyK5fNEkWoc99Vy+utO1/noTh0ZNTzn+8l13mSUxEXFCwPfSJFhLUp0eXFrRGFLkYQM8xLIZ/TCq4DQ=="/>
+                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell2026053003-2026053001.delta" sparkle:deltaFrom="2026053001" length="56786" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="O9XfQTHPWNionN5xmcb3nh7SamRa8RS7ZJ1PaqvhdBxK2XlfoTWoLetEpg31M0WPYD7jl4NhJpLCN/JDh3xjCw=="/>
+                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell2026053003-2026051201.delta" sparkle:deltaFrom="2026051201" length="129866" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="X46H+rbNSGNDcZmCok9b8yXSNoeCmg2hLwnlizP99evF7PhFlJSPPp42SgWISdmiIT/1oE2lDoRVJ0O12LjDCw=="/>
+                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell2026053003-2026050501.delta" sparkle:deltaFrom="2026050501" length="142482" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="Mm2WYCQjBOgip6W3BthwCzg+nM+6Vm8rbAroNMTSS/z0tLQkbuA8xfEdU0ERRwAj4DGZAPfXcTJOhM1hdzycDQ=="/>
+                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell2026053003-2026050401.delta" sparkle:deltaFrom="2026050401" length="176206" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2dwjXkejN+S11oh63inOTmCzes5FXhDZ+Ur367rsQO8AVC8sJSTCG5cBfOZZY/8y+j4+ozRwsRUZzQklSstyCQ=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.0.9</title>
             <pubDate>Sat, 30 May 2026 15:01:19 +0200</pubDate>
             <sparkle:version>2026053002</sparkle:version>
             <sparkle:shortVersionString>1.0.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell-1.0.9.dmg" length="6030614" type="application/octet-stream" sparkle:edSignature="Ndt5HkBNBpXlT2dm9m9HMJrY7xg+HvfhGKLkCUwBFwjgvCYdxPHzw+5llTrOpCW/q6tETwXUyXyfrXMBo19IBg=="/>
-            <sparkle:deltas>
-                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell2026053002-2026053001.delta" sparkle:deltaFrom="2026053001" length="52422" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="2ZAy+vXQTC4ojMXaNYIt6HoBcLR3WhkOWqxm76YL1Ncgfjeao34WgXeAOLBGjLTr2F1HjQaePjOi3qQBiDDwAw=="/>
-                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell2026053002-2026051201.delta" sparkle:deltaFrom="2026051201" length="127774" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="nLbkdt7t+plRzXDFEHe9Fi4KiUFc2cdRdlZ4urhcH0V5IXyEvPok+Z3J0AFbjV+GSY75Qn6EfkpiLfMhA6yEAw=="/>
-                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell2026053002-2026050501.delta" sparkle:deltaFrom="2026050501" length="139990" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="j8HEX1wCLd5n06GWdE7OSguY70zmDAL52S+ZT14bMjr5e69xNr0dQ0SuPtqI/j9bBhJQkTtXMhMsm58BHsmSBQ=="/>
-                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell2026053002-2026050401.delta" sparkle:deltaFrom="2026050401" length="176674" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="UyHMwUNk8k5/cCdhQQkrjUgtK2ckRsCRj/fm5kznP6wRvT3yEj4X/9KsqQlmfJHTu7sjKyz2sYpkUP3R9cl7Bw=="/>
-                <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell2026053002-2026042004.delta" sparkle:deltaFrom="2026042004" length="471190" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="980432" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="7yw30CS83QChMs1pyK50f9sQL0RTxr1WUp2oI3Jdd1xhd6chDaBxvgQNGF9k1SNjKbEARsXEpstAIMU2MAHVDA=="/>
-            </sparkle:deltas>
+            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell-1.0.9.dmg" length="6030614" type="application/octet-stream" sparkle:edSignature="Ndt5HkBNBpXlT2dm9m9HMJrY7xg+HvfhGKLkCUwBFwjgvCYdxPHzw+5llTrOpCW/q6tETwXUyXyfrXMBo19IBg=="/>
         </item>
         <item>
             <title>1.0.8</title>
@@ -23,15 +31,7 @@
             <sparkle:version>2026053001</sparkle:version>
             <sparkle:shortVersionString>1.0.8</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell-1.0.8.dmg" length="6029929" type="application/octet-stream" sparkle:edSignature="7BXvnj0AH0Z/5XtrZifbhUr63ghAJ082ZCMoQulcznUvsxhN5JUXX2wXVMkzbDKg5Gp78CIDEw69MqnE73oTDg=="/>
-        </item>
-        <item>
-            <title>1.0.7</title>
-            <pubDate>Tue, 12 May 2026 09:42:09 +0200</pubDate>
-            <sparkle:version>2026051201</sparkle:version>
-            <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.7</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.9/Gridwell-1.0.7.dmg" length="5973934" type="application/octet-stream" sparkle:edSignature="yN76l8F6A8oR8Kxjf8Wql5JABxysr+ERhnLbGdwUxw8S8BGy1S1CU8pQWnpuP2G6fWDJMfxh4x1iuvxWsoRZCQ=="/>
+            <enclosure url="https://github.com/jdeepwell/gridwell/releases/download/v1.0.10/Gridwell-1.0.8.dmg" length="6029929" type="application/octet-stream" sparkle:edSignature="7BXvnj0AH0Z/5XtrZifbhUr63ghAJ082ZCMoQulcznUvsxhN5JUXX2wXVMkzbDKg5Gp78CIDEw69MqnE73oTDg=="/>
         </item>
     </channel>
 </rss>
