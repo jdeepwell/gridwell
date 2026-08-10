@@ -3,6 +3,7 @@ import AppKit
 class WindowManipulator {
 
     private var cachedAXApp: AXUIElement?
+    private var enhancedUIWasEnabled: Bool?   // original AXEnhancedUserInterface state; restored on endDrag
 
     // Serial queue for AX calls and timer callbacks.
     private let axQueue = DispatchQueue(label: "com.gridwell.ax", qos: .userInteractive)
@@ -22,8 +23,9 @@ class WindowManipulator {
     /// Finds and caches the target window, then starts the 10 Hz update timer.
     /// When the target window belongs to Gridwell's own process, uses AppKit (NSWindow.setFrame)
     /// because AXUIElementSetAttributeValue cannot manipulate the calling app's own windows.
-    /// AXEnhancedUserInterface is intentionally NOT set — disabling it causes VoiceOver regressions
-    /// and Chromium UI freezes; a size-first + read-back retry loop is used instead.
+    /// AXEnhancedUserInterface is temporarily disabled for the drag session (restored in endDrag)
+    /// to prevent animated window moves in Chromium/Electron apps. A bounded read-back retry
+    /// loop with stale-frame abort and a time budget is used instead of unbounded retries.
     func beginDrag(for windowInfo: WindowInfo) -> Bool {
         let ownPID = pid_t(ProcessInfo.processInfo.processIdentifier)
 
@@ -52,6 +54,21 @@ class WindowManipulator {
 
         let axApp = AXUIElementCreateApplication(windowInfo.pid)
         cachedAXApp = axApp
+
+        // Bound each AX IPC call so a momentarily unresponsive app doesn't block the
+        // serial queue for the system default (several seconds). 0.5 s is generous for
+        // any well-behaved app yet fails fast enough to keep the 10 Hz timer responsive.
+        AXUIElementSetMessagingTimeout(axApp, 0.5)
+
+        // Disable AXEnhancedUserInterface for the drag session. When enabled (common in
+        // Chromium/Electron apps like Chrome, VS Code, Slack), setting position/size via AX
+        // triggers animated window moves — the read-back then doesn't match, causing excessive
+        // retries. Temporarily disabling prevents the animation; restored in endDrag.
+        enhancedUIWasEnabled = readEnhancedUI(from: axApp)
+        if enhancedUIWasEnabled == true {
+            setEnhancedUI(false, on: axApp)
+        }
+
         let axWindow = findAXWindow(for: windowInfo, in: axApp)
 
         lock.lock()
@@ -103,6 +120,11 @@ class WindowManipulator {
         pendingFrame   = nil
         lock.unlock()
 
+        // Restore AXEnhancedUserInterface if we disabled it at drag start.
+        if enhancedUIWasEnabled == true, let axApp = cachedAXApp {
+            setEnhancedUI(true, on: axApp)
+        }
+        enhancedUIWasEnabled = nil
         cachedAXApp = nil
 
         axQueue.async { [weak self] in
@@ -161,14 +183,41 @@ class WindowManipulator {
         )
     }
 
-    /// Applies size then position with a read-back retry loop.
+    /// Applies size then position with a bounded read-back retry loop.
+    ///
     /// Size-before-position ordering prevents the system from repositioning the window after a
     /// size change overwrites an earlier position set. The retry loop handles apps that animate
-    /// or clamp geometry — industry-standard approach used by Rectangle, Moom, etc.
+    /// or clamp geometry.
+    ///
+    /// Two guards prevent the loop from blocking the serial timer queue under load:
+    /// 1. **Stale-frame abort** — between retries, if a newer `pendingFrame` has arrived from
+    ///    the drag handler, the current frame is obsolete; bail immediately rather than burning
+    ///    IPC calls on a frame the mouse has already moved past. This is the key defense against
+    ///    fast mouse movements causing progressive degradation.
+    /// 2. **Time budget** — the total call is capped at 80 ms (leaving 20 ms headroom within
+    ///    the 100 ms timer interval), so even very slow AX responses can't back up the queue.
+    ///
     /// Both position AND size are verified before returning; verifying only position would miss
     /// cases where the size update lags (e.g. when crossing screen boundaries).
-    private func setFrame(_ frame: CGRect, for axWindow: AXUIElement, retries: Int = 5) {
+    private func setFrame(_ frame: CGRect, for axWindow: AXUIElement, retries: Int = 3) {
+        let start = DispatchTime.now()
+        let timeBudgetNs: UInt64 = 80_000_000  // 80 ms
+
         for attempt in 0..<retries {
+            // Between retries: abort if the frame is stale or the time budget is exhausted.
+            if attempt > 0 {
+                if DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds > timeBudgetNs {
+                    NSLog("[WindowManipulator] setFrame: time budget exhausted after %d attempts", attempt)
+                    return
+                }
+                lock.lock()
+                let pending = pendingFrame
+                lock.unlock()
+                if pending != nil && pending != frame {
+                    return  // stale — newer frame pending, stop retrying
+                }
+            }
+
             // Size first, then position — prevents system from repositioning after size change.
             applySize(frame.size, to: axWindow)
             applyPosition(frame.origin, to: axWindow)
@@ -238,5 +287,18 @@ class WindowManipulator {
     private func matches(_ axWindow: AXUIElement, frame: CGRect) -> Bool {
         guard let pos = readPosition(from: axWindow) else { return false }
         return abs(pos.x - frame.origin.x) < 2 && abs(pos.y - frame.origin.y) < 2
+    }
+
+    // MARK: - AXEnhancedUserInterface helpers
+
+    private func readEnhancedUI(from axApp: AXUIElement) -> Bool? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, "AXEnhancedUserInterface" as CFString, &ref) == .success,
+              let val = ref else { return nil }
+        return val as? Bool
+    }
+
+    private func setEnhancedUI(_ enabled: Bool, on axApp: AXUIElement) {
+        AXUIElementSetAttributeValue(axApp, "AXEnhancedUserInterface" as CFString, enabled as CFBoolean)
     }
 }
