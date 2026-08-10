@@ -11,24 +11,25 @@ A macOS utility for moving and resizing windows by dragging anywhere in them —
 
 ## Features
 
-- **Drag from anywhere** — hold the trigger modifier key (default: FN / Globe) and left-click anywhere inside a window to move or resize it, no matter where your cursor is – you can release the trigger modifier key during interaction.
-- **Move or resize in one gesture** — the drag zone is determined by cursor position: clicking near the right or bottom edge resizes, clicking anywhere else moves.
+- **Drag from anywhere** — hold the trigger modifier key (default: FN / Globe) and left-click anywhere inside a window to move or resize it, no matter where your cursor is – you can release the trigger modifier key during interaction. Alternatively, use a configurable extra mouse button (middle, back, forward, etc.) with no modifier key required.
+- **Move or resize in one gesture** — the drag zone is determined by cursor position: clicking near any edge (left, right, top, or bottom) resizes, clicking in the centre moves.
 - **Snap to grid** — hold the grid snap modifier (default: Control) while dragging to snap the window to the nearest cell of your custom grid.
 - **Snap to windows** — hold the window snap modifier (default: Shift) while dragging to align the window's edges with the edges of other on-screen windows.
 - **Snap modifiers work mid-drag** — you can change or release a snap modifier at any point during a drag and the window responds immediately.
 - **Per-screen grids** — configure a different column and row count for each connected display.
-- **Fully configurable modifier keys** — all four modifier keys (trigger, snap-to-windows, snap-to-same-app-windows, snap-to-grid) are set in preferences and persist across launches.
+- **Fully configurable keys** — the drag trigger (modifier key combination, modifier+key shortcut, or mouse button), snap-to-windows, snap-to-same-app-windows, and snap-to-grid keys are all set in preferences and persist across launches.
 - **No title bar required** — works on windows that have non-standard or hidden title bars.
 - **Per-app window snapping** — hold a dedicated modifier (default: Option) to snap only to windows belonging to the same application.
+- **Mouse button app exceptions** — exclude specific apps from the mouse button trigger so native behaviour (e.g. middle-click auto-scroll in browsers) is preserved.
 - **Minimum window size filter** — small accessory windows below a configurable threshold are excluded from drag and resize interactions.
-- **Configurable resize border width** — adjust how wide the edge zone is that triggers a resize rather than a move (default 150 pt).
+- **Configurable resize border** — adjust how wide the edge zone is that triggers a resize rather than a move, using a percentage of the window dimension (default 25 %) and a minimum pixel floor (default 40 pt).
 - **Raise on drag** — optionally bring the target window and its app to the front when you start dragging (enabled by default).
 
 ## How it works
 
 ### Moving a window
 
-Hold the **trigger key** (default: FN / Globe) and left-click in the middle of any window. Drag to move it. Release the mouse button to finish.
+Hold the **trigger key** (default: FN / Globe) and left-click in the middle of any window. Drag to move it. Release the mouse button to finish. Alternatively, press the configured **mouse button** (middle, back, forward, etc.) without any modifier key.
 
 ### Resizing a window
 
@@ -75,11 +76,11 @@ Configure the number of columns and rows for each connected screen. A live previ
 
 ### Behaviour tab
 
-Configure raise-on-drag, minimum window size (width and height below which windows are excluded from interactions), and the resize border width (how deep the edge zone is that triggers a resize rather than a move).
+Configure raise-on-drag, minimum window size (width and height below which windows are excluded from interactions), and the resize border (a percentage of the window dimension plus a minimum pixel floor that together determine how deep the edge zone is that triggers a resize rather than a move).
 
 ### Keys tab
 
-Set the four modifier keys independently: drag trigger, snap-to-grid, snap-to-all-windows, and snap-to-same-app-windows. Available choices: FN / Globe (fn), Shift (⇧), Control (⌃), Option (⌥), Command (⌘).
+Set the drag trigger (modifier key combination, modifier+key shortcut, or mouse button), snap-to-grid, snap-to-all-windows, and snap-to-same-app-windows keys independently. A separate card lets you define mouse button app exceptions — apps where the mouse button trigger is disabled so native behaviour is preserved.
 
 <!-- SCREENSHOT: Preferences window open on the Keys tab, showing the "Drag Trigger" GroupBox with a key picker and the "Snap Modifiers" GroupBox with two key pickers. -->
 > **[Screenshot — Preferences → Keys tab]**

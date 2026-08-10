@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.11] - 2026-08-10
+
+### Fixed
+- **Window resizing no longer degrades over time** — dragging and resizing windows via Gridwell could become progressively laggy the longer the target app was running, eventually failing to resize correctly with fast mouse movements. Three changes to the Accessibility API interaction fix this:
+  - Each AX IPC call is now bounded by a 0.5-second messaging timeout, so a momentarily unresponsive app can no longer block Gridwell's update queue for the system default of several seconds.
+  - `AXEnhancedUserInterface` is temporarily disabled for the duration of a drag session (and restored afterwards) to prevent animated window moves in Chromium/Electron apps (Chrome, VS Code, Slack) that caused read-back mismatches and excessive retry loops.
+  - The read-back retry loop is now bounded to 3 attempts (down from 5) with an 80 ms time budget and a stale-frame abort: if a newer frame arrives from the drag handler mid-retry, the obsolete frame is abandoned immediately instead of burning IPC calls on it. This is the key fix for fast mouse movements — worst-case IPC calls per update drop from 20 to 12.
+
+### Updated
+- **README updated** — documentation now reflects the mouse button trigger, mouse button app exceptions, percentage-based resize border, and four-edge resizing that were added in previous releases.
+
 ## [1.0.10] - 2026-05-30
 
 ### Improved
