@@ -18,6 +18,16 @@ class MouseInteractionHandler {
     private var dragZone: DragZone = .move
     private var otherWindows: [WindowInfo] = []
 
+    // MARK: - Edge shrink state
+    private var grabFraction = CGPoint.zero      // cursor position inside the window at drag start, 0…1 per axis
+    private var fullSize = CGSize.zero           // size edge shrink scales down from
+    private var shrinkUsed = false               // edge shrink was active at some point in this drag
+    private var lockedScreen: CGRect?            // CG frame of the locked screen; non-nil while edge shrink is active
+    private var lastShrinkSize = CGSize.zero     // size applied by the latest edge shrink update
+    private var inMinimizeZone = false
+    private var shrunkSizes: [CGWindowID: CGSize] = [:]   // original sizes of windows left shrunk
+    private let edgeZoneOverlay = EdgeZoneOverlay()
+
     // MARK: - Event tap
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -125,6 +135,8 @@ class MouseInteractionHandler {
 
     private func handleFlagsChanged(event: CGEvent) -> Unmanaged<CGEvent>? {
         modifierKeyMonitor.handleFlagsChanged(event)
+        // Apply modifier changes mid-drag immediately, without waiting for the next mouse move.
+        if dragSource != nil { _ = applyDragUpdate(event: event) }
         return Unmanaged.passRetained(event)    // modifier changes are never suppressed
     }
 
@@ -250,6 +262,14 @@ class MouseInteractionHandler {
             borderMinPixels: CGFloat(gridStore.resizeBorderMinPixels)
         )
         otherWindows = windowInfoProvider.windows.filter { $0.windowID != window.windowID }
+
+        let frame = window.frame
+        grabFraction = CGPoint(x: frame.width  > 0 ? (location.x - frame.minX) / frame.width  : 0.5,
+                               y: frame.height > 0 ? (location.y - frame.minY) / frame.height : 0.5)
+        fullSize       = shrunkSizes[window.windowID] ?? frame.size
+        shrinkUsed     = false
+        lockedScreen   = nil
+        inMinimizeZone = false
         windowManipulator.beginDrag(for: window)
 
         if gridStore.raiseWindowOnDrag {
@@ -270,27 +290,41 @@ class MouseInteractionHandler {
         guard activeWindow != nil else { return nil }
 
         let location = event.location
-        let delta = CGPoint(
-            x: location.x - dragStartMousePos.x,
-            y: location.y - dragStartMousePos.y
-        )
+        // Exact match: a feature is active only while exactly its combination is held.
+        let held = ModifierCombination(cgEventFlags: event.flags)
 
-        let candidate = GridSnapper.candidateFrame(
-            startFrame: dragStartWindowFrame,
-            delta: delta,
-            zone: dragZone
-        )
+        if case .move = dragZone, gridStore.modifiers(for: .edgeShrink).isActive(held: held) {
+            applyEdgeShrink(at: location)
+            return nil
+        }
+        lockedScreen = nil
+        setMinimizeZone(nil)
+
+        let candidate: CGRect
+        if shrinkUsed {
+            // Edge shrink was released: back to full size at the real cursor position.
+            candidate = GridSnapper.frame(size: fullSize, anchoredAt: location, grabFraction: grabFraction)
+        } else {
+            let delta = CGPoint(
+                x: location.x - dragStartMousePos.x,
+                y: location.y - dragStartMousePos.y
+            )
+            candidate = GridSnapper.candidateFrame(
+                startFrame: dragStartWindowFrame,
+                delta: delta,
+                zone: dragZone
+            )
+        }
 
         let snapMode: SnapMode
         let snapWindows: [WindowInfo]
-        let flags = event.flags
-        if flags.contains(gridStore.appWindowSnapKey.cgEventFlag) {
+        if gridStore.modifiers(for: .appWindowSnap).isActive(held: held) {
             snapMode = .windows
             snapWindows = otherWindows.filter { $0.pid == activeWindow?.pid }
-        } else if flags.contains(gridStore.windowSnapKey.cgEventFlag) {
+        } else if gridStore.modifiers(for: .windowSnap).isActive(held: held) {
             snapMode = .windows
             snapWindows = otherWindows
-        } else if flags.contains(gridStore.gridSnapKey.cgEventFlag) {
+        } else if gridStore.modifiers(for: .gridSnap).isActive(held: held) {
             snapMode = .grid
             snapWindows = []
         } else {
@@ -311,11 +345,71 @@ class MouseInteractionHandler {
         return nil
     }
 
+    /// Edge shrink: the cursor is clamped to the screen locked when the shrink combination became
+    /// active, so edges shared with another screen behave like outer edges. The window scales around
+    /// the grab point in the left/right zones and keeps its full size in the bottom minimize zone.
+    private func applyEdgeShrink(at location: CGPoint) {
+        if lockedScreen == nil {
+            guard let screen = GridSnapper.containingScreen(for: location) else { return }
+            lockedScreen = GridSnapper.cgFrame(of: screen)
+            shrinkUsed = true
+        }
+        guard let screen = lockedScreen else { return }
+
+        let point      = GridSnapper.clamp(location, to: screen)
+        let zoneWidth  = CGFloat(gridStore.edgeZoneWidth)
+        let zoneHeight = CGFloat(gridStore.bottomZoneHeight)
+        let zone = GridSnapper.edgeZone(at: point, in: screen, zoneWidth: zoneWidth, bottomHeight: zoneHeight)
+
+        var size = fullSize
+        if case .shrink(let t) = zone {
+            size = GridSnapper.shrunkSize(
+                fullSize: fullSize, t: t,
+                minWidth: CGFloat(gridStore.edgeShrinkMinWidth),
+                floorSize: CGSize(width: gridStore.minWindowWidth, height: gridStore.minWindowHeight)
+            )
+        }
+        lastShrinkSize = size
+
+        if zone == .minimize && windowManipulator.canMinimize {
+            setMinimizeZone(GridSnapper.minimizeZoneRect(in: screen, zoneWidth: zoneWidth, bottomHeight: zoneHeight))
+        } else {
+            setMinimizeZone(nil)
+        }
+
+        windowManipulator.updateDrag(to: GridSnapper.frame(size: size, anchoredAt: point, grabFraction: grabFraction))
+    }
+
+    /// Shows the minimize strip over `rect` (CG coords), or hides it when nil.
+    private func setMinimizeZone(_ rect: CGRect?) {
+        inMinimizeZone = rect != nil
+        if let rect {
+            edgeZoneOverlay.show(at: rect)
+        } else {
+            edgeZoneOverlay.hide()
+        }
+    }
+
     private func endDragSession() {
-        NSLog("[MouseInteractionHandler] Drag ended")
+        let minimize = inMinimizeZone && activeWindow != nil
+        NSLog("[MouseInteractionHandler] Drag ended%@", minimize ? " — minimizing" : "")
+
+        // Remember the full size of a window left shrunk; forget it once it is back at full size.
+        // A minimized window is restored to its drag-start frame, so its entry stays as it was.
+        if let window = activeWindow, shrinkUsed, !minimize {
+            if lockedScreen != nil && lastShrinkSize != fullSize {
+                shrunkSizes[window.windowID] = fullSize
+            } else {
+                shrunkSizes[window.windowID] = nil
+            }
+        }
+
+        setMinimizeZone(nil)
+        lockedScreen = nil
+        shrinkUsed   = false
         dragSource   = nil
         activeWindow = nil
         otherWindows = []
-        windowManipulator.endDrag()
+        windowManipulator.endDrag(minimizeRestoring: minimize ? dragStartWindowFrame : nil)
     }
 }

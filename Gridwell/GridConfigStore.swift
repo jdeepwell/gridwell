@@ -62,10 +62,10 @@ class GridConfigStore: ObservableObject {
     private let minWindowHeightKey         = "minWindowHeight"
     private let resizeBorderPercentKey     = "resizeBorderPercent"
     private let resizeBorderMinPixelsKey   = "resizeBorderMinPixels"
+    private let edgeZoneWidthKey           = "edgeZoneWidth"
+    private let edgeShrinkMinWidthKey      = "edgeShrinkMinWidth"
+    private let bottomZoneHeightKey        = "bottomZoneHeight"
     private let triggerShortcutKey              = "triggerShortcut"
-    private let windowSnapKeyKey                = "windowSnapKey"
-    private let appWindowSnapKeyKey             = "appWindowSnapKey"
-    private let gridSnapKeyKey                  = "gridSnapKey"
     private let mouseButtonTriggerKey           = "mouseButtonTrigger"
     private let mouseButtonExcludedAppsKey      = "mouseButtonExcludedApps"
     private let settingsVersionKey              = "settingsVersion"
@@ -79,8 +79,11 @@ class GridConfigStore: ObservableObject {
     private let lk_v1_windowSnapKey       = "com.gridwell.windowSnapKey"
     private let lk_v1_gridSnapKey         = "com.gridwell.gridSnapKey"
     private let lk_v2_resizeBorderWidth   = "resizeBorderWidth"
+    private let lk_v3_windowSnapKey       = "windowSnapKey"
+    private let lk_v3_appWindowSnapKey    = "appWindowSnapKey"
+    private let lk_v3_gridSnapKey         = "gridSnapKey"
 
-    private static let currentSettingsVersion = 3
+    private static let currentSettingsVersion = 4
 
     /// Maps screen key → grid config. Missing keys fall back to defaults.
     @Published private var config: [String: ScreenGridConfig] = [:]
@@ -101,17 +104,21 @@ class GridConfigStore: ObservableObject {
     /// Minimum resize border in points. Ensures a usable border on small windows.
     @Published private(set) var resizeBorderMinPixels: Int = 40
 
+    /// Width of the left/right screen edge zones in which a dragged window shrinks (edge shrink).
+    @Published private(set) var edgeZoneWidth: Int = 120
+
+    /// Width in points a window is shrunk to when pushed fully into an edge zone.
+    @Published private(set) var edgeShrinkMinWidth: Int = 400
+
+    /// Height of the bottom screen edge zone in which releasing a window minimizes it.
+    @Published private(set) var bottomZoneHeight: Int = 40
+
     /// Key combination that must be held to initiate a drag.
     @Published private(set) var triggerShortcut: TriggerShortcut = .defaultFN
 
-    /// Modifier key held during drag to snap to all other window edges.
-    @Published private(set) var windowSnapKey: ModifierKey = .shift
-
-    /// Modifier key held during drag to snap to windows of the same application.
-    @Published private(set) var appWindowSnapKey: ModifierKey = .option
-
-    /// Modifier key held during drag to snap to the grid.
-    @Published private(set) var gridSnapKey: ModifierKey = .control
+    /// Modifier combination per drag feature (snap to windows / same app / grid, edge shrink).
+    /// A feature is active only while exactly its combination is held; empty = disabled.
+    @Published private var featureModifiers: [ModifierFeature: ModifierCombination] = [:]
 
     /// The mouse button number that initiates a drag/resize without a modifier key. nil = disabled.
     /// Button numbers: 2 = middle, 3 = button 4, 4 = button 5, etc.
@@ -137,10 +144,19 @@ class GridConfigStore: ObservableObject {
         if let m = UserDefaults.standard.object(forKey: resizeBorderMinPixelsKey) as? Int {
             resizeBorderMinPixels = m
         }
+        if let w = UserDefaults.standard.object(forKey: edgeZoneWidthKey) as? Int {
+            edgeZoneWidth = w
+        }
+        if let w = UserDefaults.standard.object(forKey: edgeShrinkMinWidthKey) as? Int {
+            edgeShrinkMinWidth = w
+        }
+        if let h = UserDefaults.standard.object(forKey: bottomZoneHeightKey) as? Int {
+            bottomZoneHeight = h
+        }
         triggerShortcut  = loadTriggerShortcut()
-        windowSnapKey    = loadModifierKey(forKey: windowSnapKeyKey,    default: .shift)
-        appWindowSnapKey = loadModifierKey(forKey: appWindowSnapKeyKey, default: .option)
-        gridSnapKey      = loadModifierKey(forKey: gridSnapKeyKey,      default: .control)
+        for feature in ModifierFeature.allCases {
+            featureModifiers[feature] = loadModifierCombination(for: feature)
+        }
         mouseButtonTrigger = UserDefaults.standard.object(forKey: mouseButtonTriggerKey) as? Int
         mouseButtonExcludedApps = loadExcludedApps()
         load()
@@ -163,6 +179,7 @@ class GridConfigStore: ObservableObject {
         if stored < 1 { migrate0to1() }
         if stored < 2 { migrate1to2() }
         if stored < 3 { migrate2to3() }
+        if stored < 4 { migrate3to4() }
 
         UserDefaults.standard.set(Self.currentSettingsVersion, forKey: settingsVersionKey)
     }
@@ -191,8 +208,8 @@ class GridConfigStore: ObservableObject {
             (lk_v1_gridConfig,        userDefaultsKey),
             (lk_v1_raiseWindowOnDrag, raiseOnDragKey),
             (lk_v1_triggerShortcut,   triggerShortcutKey),
-            (lk_v1_windowSnapKey,     windowSnapKeyKey),
-            (lk_v1_gridSnapKey,       gridSnapKeyKey),
+            (lk_v1_windowSnapKey,     lk_v3_windowSnapKey),
+            (lk_v1_gridSnapKey,       lk_v3_gridSnapKey),
         ]
         for (old, new) in moves {
             if let value = ud.object(forKey: old) {
@@ -214,6 +231,24 @@ class GridConfigStore: ObservableObject {
             ud.removeObject(forKey: lk_v2_resizeBorderWidth)
         }
         NSLog("[GridConfigStore] Migrated settings from 2 to 3")
+    }
+
+    /// v3 → v4: convert the single-ModifierKey snap keys to exact ModifierCombinations.
+    /// Each key becomes a one-key combination; the trigger modifier is not added.
+    private func migrate3to4() {
+        let ud = UserDefaults.standard
+        let moves: [(from: String, to: ModifierFeature)] = [
+            (lk_v3_windowSnapKey,    .windowSnap),
+            (lk_v3_appWindowSnapKey, .appWindowSnap),
+            (lk_v3_gridSnapKey,      .gridSnap),
+        ]
+        for (old, feature) in moves {
+            if let raw = ud.string(forKey: old), let key = ModifierKey(rawValue: raw) {
+                saveModifierCombination(ModifierCombination(key.nsModifierFlag), for: feature)
+            }
+            ud.removeObject(forKey: old)
+        }
+        NSLog("[GridConfigStore] Migrated settings from 3 to 4")
     }
 
     func setRaiseWindowOnDrag(_ value: Bool) {
@@ -241,24 +276,41 @@ class GridConfigStore: ObservableObject {
         UserDefaults.standard.set(value, forKey: resizeBorderMinPixelsKey)
     }
 
+    func setEdgeZoneWidth(_ value: Int) {
+        edgeZoneWidth = value
+        UserDefaults.standard.set(value, forKey: edgeZoneWidthKey)
+    }
+
+    func setEdgeShrinkMinWidth(_ value: Int) {
+        edgeShrinkMinWidth = value
+        UserDefaults.standard.set(value, forKey: edgeShrinkMinWidthKey)
+    }
+
+    func setBottomZoneHeight(_ value: Int) {
+        bottomZoneHeight = value
+        UserDefaults.standard.set(value, forKey: bottomZoneHeightKey)
+    }
+
     func setTriggerShortcut(_ shortcut: TriggerShortcut) {
         triggerShortcut = shortcut
         saveTriggerShortcut(shortcut)
     }
 
-    func setWindowSnapKey(_ key: ModifierKey) {
-        windowSnapKey = key
-        UserDefaults.standard.set(key.rawValue, forKey: windowSnapKeyKey)
+    func modifiers(for feature: ModifierFeature) -> ModifierCombination {
+        featureModifiers[feature] ?? feature.defaultCombination
     }
 
-    func setAppWindowSnapKey(_ key: ModifierKey) {
-        appWindowSnapKey = key
-        UserDefaults.standard.set(key.rawValue, forKey: appWindowSnapKeyKey)
+    func setModifiers(_ combination: ModifierCombination, for feature: ModifierFeature) {
+        featureModifiers[feature] = combination
+        saveModifierCombination(combination, for: feature)
     }
 
-    func setGridSnapKey(_ key: ModifierKey) {
-        gridSnapKey = key
-        UserDefaults.standard.set(key.rawValue, forKey: gridSnapKeyKey)
+    /// Returns the other feature that already uses `combination`, if any.
+    /// Empty combinations (disabled features) never conflict.
+    func conflictingFeature(for combination: ModifierCombination,
+                            excluding feature: ModifierFeature) -> ModifierFeature? {
+        guard !combination.isEmpty else { return nil }
+        return ModifierFeature.allCases.first { $0 != feature && modifiers(for: $0) == combination }
     }
 
     func setMouseButtonTrigger(_ value: Int?) {
@@ -302,10 +354,17 @@ class GridConfigStore: ObservableObject {
         }
     }
 
-    private func loadModifierKey(forKey key: String, default fallback: ModifierKey) -> ModifierKey {
-        guard let raw = UserDefaults.standard.string(forKey: key),
-              let value = ModifierKey(rawValue: raw) else { return fallback }
-        return value
+    private func loadModifierCombination(for feature: ModifierFeature) -> ModifierCombination {
+        guard let data = UserDefaults.standard.data(forKey: feature.storageKey),
+              let decoded = try? JSONDecoder().decode(ModifierCombination.self, from: data)
+        else { return feature.defaultCombination }
+        return decoded
+    }
+
+    private func saveModifierCombination(_ combination: ModifierCombination, for feature: ModifierFeature) {
+        if let data = try? JSONEncoder().encode(combination) {
+            UserDefaults.standard.set(data, forKey: feature.storageKey)
+        }
     }
 
     // MARK: Accessors

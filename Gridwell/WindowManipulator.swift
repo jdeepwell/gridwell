@@ -5,6 +5,9 @@ class WindowManipulator {
     private var cachedAXApp: AXUIElement?
     private var enhancedUIWasEnabled: Bool?   // original AXEnhancedUserInterface state; restored on endDrag
 
+    /// Whether the current drag target can be minimized. Set in beginDrag; main thread only.
+    private(set) var canMinimize = false
+
     // Serial queue for AX calls and timer callbacks.
     private let axQueue = DispatchQueue(label: "com.gridwell.ax", qos: .userInteractive)
 
@@ -39,6 +42,7 @@ class WindowManipulator {
             pendingFrame   = nil
             lock.unlock()
             cachedAXApp = nil
+            canMinimize = matched?.styleMask.contains(.miniaturizable) ?? false
             startUpdateTimer(startFrame: windowInfo.frame)
             if matched == nil {
                 NSLog("[WindowManipulator] beginDrag: own-process window not found for [%@] frame=%@",
@@ -75,6 +79,8 @@ class WindowManipulator {
         cachedAXWindow = axWindow
         pendingFrame   = nil
         lock.unlock()
+
+        canMinimize = axWindow.map { isSettable(kAXMinimizedAttribute, on: $0) } ?? false
 
         startUpdateTimer(startFrame: windowInfo.frame)
 
@@ -113,25 +119,53 @@ class WindowManipulator {
     }
 
     /// Stops the timer and clears all drag state.
-    func endDrag() {
+    ///
+    /// With `minimizeRestoring`, the window is first moved back to that frame and then minimized,
+    /// so it reappears there when restored from the Dock. This runs on the serial AX queue after
+    /// the timer is cancelled, so no pending drag frame can be applied after the restore.
+    func endDrag(minimizeRestoring restoreFrame: CGRect? = nil) {
         lock.lock()
+        let axWindow = cachedAXWindow
+        let ownWin   = ownWindow
         cachedAXWindow = nil
         ownWindow      = nil
         pendingFrame   = nil
         lock.unlock()
 
-        // Restore AXEnhancedUserInterface if we disabled it at drag start.
-        if enhancedUIWasEnabled == true, let axApp = cachedAXApp {
-            setEnhancedUI(true, on: axApp)
-        }
+        let axApp = cachedAXApp
+        let restoreEnhancedUI = enhancedUIWasEnabled == true
         enhancedUIWasEnabled = nil
         cachedAXApp = nil
+        canMinimize = false
+
+        // Restore AXEnhancedUserInterface if we disabled it at drag start. When minimizing, it is
+        // restored on the AX queue after the restore frame is applied, so that move isn't animated.
+        let minimizeAX = restoreFrame != nil && axWindow != nil
+        if restoreEnhancedUI, !minimizeAX, let axApp {
+            setEnhancedUI(true, on: axApp)
+        }
+
+        if let restoreFrame, let ownWin {
+            let nsFrame = cgToAppKit(restoreFrame)
+            DispatchQueue.main.async {
+                ownWin.setFrame(nsFrame, display: true)
+                ownWin.miniaturize(nil)
+            }
+        }
 
         axQueue.async { [weak self] in
             guard let self else { return }
             self.updateTimer?.cancel()
             self.updateTimer = nil
             self.lastAppliedFrame = nil
+
+            if minimizeAX, let restoreFrame, let axWindow {
+                self.setFrame(restoreFrame, for: axWindow)
+                AXUIElementSetAttributeValue(axWindow, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+                if restoreEnhancedUI, let axApp {
+                    self.setEnhancedUI(true, on: axApp)
+                }
+            }
         }
     }
 
@@ -287,6 +321,14 @@ class WindowManipulator {
     private func matches(_ axWindow: AXUIElement, frame: CGRect) -> Bool {
         guard let pos = readPosition(from: axWindow) else { return false }
         return abs(pos.x - frame.origin.x) < 2 && abs(pos.y - frame.origin.y) < 2
+    }
+
+    private func isSettable(_ attribute: String, on element: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        guard AXUIElementIsAttributeSettable(element, attribute as CFString, &settable) == .success else {
+            return false
+        }
+        return settable.boolValue
     }
 
     // MARK: - AXEnhancedUserInterface helpers

@@ -278,6 +278,54 @@ private struct BehaviourTab: View {
                         .preferenceHelpText()
                 }
             }
+
+            PreferenceCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    PreferenceSectionTitle("Screen Edges")
+
+                    HStack(alignment: .top, spacing: 30) {
+                        PreferenceSliderControl(
+                            label: "Side zone width",
+                            value: Binding(
+                                get: { store.edgeZoneWidth },
+                                set: { store.setEdgeZoneWidth($0) }
+                            ),
+                            range: 20...400,
+                            step: 10,
+                            tickCount: 39
+                        )
+
+                        PreferenceSliderControl(
+                            label: "Bottom zone height",
+                            value: Binding(
+                                get: { store.bottomZoneHeight },
+                                set: { store.setBottomZoneHeight($0) }
+                            ),
+                            range: 10...200,
+                            step: 5,
+                            tickCount: 39
+                        )
+                    }
+
+                    HStack(alignment: .top, spacing: 30) {
+                        PreferenceSliderControl(
+                            label: "Minimum shrink width",
+                            value: Binding(
+                                get: { store.edgeShrinkMinWidth },
+                                set: { store.setEdgeShrinkMinWidth($0) }
+                            ),
+                            range: 100...1500,
+                            step: 50,
+                            tickCount: 29
+                        )
+
+                        Color.clear.frame(height: 1)
+                    }
+
+                    Text("While the edge shrink combination is held, a window dragged into a side zone shrinks down to the minimum width, and releasing it in the bottom zone minimizes it. Enable by assigning a combination in the Keys tab.")
+                        .preferenceHelpText()
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -528,34 +576,35 @@ private struct KeysTab: View {
 
             PreferenceCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    PreferenceSectionTitle("Snap Modifiers")
+                    PreferenceSectionTitle("Modifier Combinations")
 
-                    Text("Hold one while dragging to choose the snap target.")
+                    Text("While dragging, hold exactly one of these combinations to activate the feature. Release the drag trigger first unless it is part of the combination.")
                         .preferenceHelpText()
 
-                    KeyPickerRow(
-                        title: "All windows",
-                        detail: "Other apps and screen edges",
-                        selection: Binding(get: { store.windowSnapKey },
-                                           set: { store.setWindowSnapKey($0) })
+                    ModifierCombinationRow(
+                        feature: .windowSnap,
+                        detail: "Snap to other windows and screen edges"
                     )
 
                     Divider()
 
-                    KeyPickerRow(
-                        title: "Same app",
-                        detail: "Only windows from the current app",
-                        selection: Binding(get: { store.appWindowSnapKey },
-                                           set: { store.setAppWindowSnapKey($0) })
+                    ModifierCombinationRow(
+                        feature: .appWindowSnap,
+                        detail: "Snap only to windows from the current app"
                     )
 
                     Divider()
 
-                    KeyPickerRow(
-                        title: "Grid",
-                        detail: "Personal grid positions",
-                        selection: Binding(get: { store.gridSnapKey },
-                                           set: { store.setGridSnapKey($0) })
+                    ModifierCombinationRow(
+                        feature: .gridSnap,
+                        detail: "Snap to personal grid positions"
+                    )
+
+                    Divider()
+
+                    ModifierCombinationRow(
+                        feature: .edgeShrink,
+                        detail: "Shrink at side edges, minimize at bottom"
                     )
                 }
             }
@@ -711,8 +760,8 @@ private struct ShortcutRecorderRow: View {
 
             if recorder.isRecording {
                 Button("Cancel") { recorder.cancel() }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
             }
         }
     }
@@ -794,13 +843,13 @@ private struct MouseButtonRecorderRow: View {
 
             if recorder.isRecording {
                 Button("Cancel") { recorder.cancel() }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .fixedSize()
             } else if buttonNumber != nil {
                 Button("Disable") { buttonNumber = nil }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
                     .fixedSize()
             }
         }
@@ -942,37 +991,139 @@ private struct AppIconView: NSViewRepresentable {
     }
 }
 
-// MARK: - Key picker row
+// MARK: - Modifier combination recorder state
 
-private struct KeyPickerRow: View {
-    let title: String
+/// Records a modifier-only combination. Non-modifier keys are ignored, Escape cancels,
+/// and the combination held at the last key press is committed once all keys are released.
+@MainActor
+private final class ModifierRecorderState: ObservableObject {
+    @Published var isRecording = false
+    @Published var live = ModifierCombination.none
+
+    private var onCommit: ((ModifierCombination) -> Void)?
+    private var monitors: [Any] = []
+    private var currentFlags = NSEvent.ModifierFlags()
+    // The combination held at the last press — committed when all keys are released.
+    private var lastPressed: ModifierCombination? = nil
+
+    func startRecording(onCommit: @escaping (ModifierCombination) -> Void) {
+        self.onCommit = onCommit
+        isRecording  = true
+        currentFlags = []
+        lastPressed  = nil
+        live         = .none
+
+        let m1 = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+            self?.onFlagsChanged(event)
+            return event
+        }
+        let m2 = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { self?.cancel() }   // Escape — cancel without saving
+            return nil  // consume all key events while recording
+        }
+        let m3 = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { _ in nil }
+        monitors = [m1, m2, m3].compactMap { $0 }
+    }
+
+    func cancel() { tearDown(commit: false) }
+
+    private func onFlagsChanged(_ event: NSEvent) {
+        let newFlags = event.modifierFlags.intersection(TriggerShortcut.relevantModifiers)
+        // Only snapshot on press events — releasing keys must not corrupt the stored peak state.
+        let isPress = !newFlags.subtracting(currentFlags).isEmpty
+        currentFlags = newFlags
+        live = ModifierCombination(newFlags)
+        if isPress { lastPressed = live }
+        if currentFlags.isEmpty && lastPressed != nil { tearDown(commit: true) }
+    }
+
+    private func tearDown(commit: Bool) {
+        monitors.forEach { NSEvent.removeMonitor($0) }
+        monitors = []
+        isRecording = false
+        if commit, let result = lastPressed { onCommit?(result) }
+        onCommit = nil
+    }
+}
+
+// MARK: - Modifier combination row
+
+private struct ModifierCombinationRow: View {
+    let feature: ModifierFeature
     let detail: String
-    @Binding var selection: ModifierKey
+    @EnvironmentObject private var store: GridConfigStore
+    @StateObject private var recorder = ModifierRecorderState()
+    @State private var conflictMessage: String? = nil
 
     var body: some View {
+        let combination = store.modifiers(for: feature)
+
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(feature.displayName)
                     .font(.callout.weight(.semibold))
                     .lineLimit(1)
                 Text(detail)
                     .preferenceHelpText()
                     .lineLimit(1)
+                if let conflictMessage {
+                    Text(conflictMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
             }
             .layoutPriority(1)
 
             Spacer()
 
-            Picker("", selection: $selection) {
-                ForEach(ModifierKey.allCases, id: \.self) { key in
-                    Text(key.symbol + "  " + key.displayName).tag(key)
+            HStack(spacing: 8) {
+                Button {
+                    if recorder.isRecording {
+                        recorder.cancel()
+                    } else {
+                        conflictMessage = nil
+                        recorder.startRecording { commit($0) }
+                    }
+                } label: {
+                    let display = recorder.isRecording
+                        ? (recorder.live.isEmpty ? "Recording…" : recorder.live.displayString)
+                        : (combination.isEmpty ? "Disabled" : combination.displayString)
+                    Text(display)
+                        .foregroundStyle(recorder.isRecording ? .red : (combination.isEmpty ? .secondary : .primary))
+                        .font(.callout.weight(.semibold))
+                        .lineLimit(1)
+                        .frame(minWidth: 96, minHeight: 24, alignment: .center)
+                        .animation(nil, value: display)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .help(recorder.isRecording ? "Hold modifier keys, then release them" : "Record modifier combination")
+
+                if recorder.isRecording {
+                    Button("Cancel") { recorder.cancel() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                        .fixedSize()
+                } else if !combination.isEmpty {
+                    Button("Disable") {
+                        conflictMessage = nil
+                        store.setModifiers(.none, for: feature)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .fixedSize()
                 }
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .controlSize(.regular)
-            .frame(width: 138)
         }
+    }
+
+    private func commit(_ combination: ModifierCombination) {
+        if let other = store.conflictingFeature(for: combination, excluding: feature) {
+            conflictMessage = "\(combination.displayString) is already used by \"\(other.displayName)\"."
+            return
+        }
+        conflictMessage = nil
+        store.setModifiers(combination, for: feature)
     }
 }
 

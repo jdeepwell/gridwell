@@ -65,3 +65,6 @@ ExportOptions.plist
 *.log
 
 Releases/
+
+# Local preference backups (reset_prefs_to_v3.sh)
+PrefsBackups/

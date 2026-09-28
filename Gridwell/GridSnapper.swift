@@ -26,6 +26,15 @@ enum SnapMode {
     case grid       // FN + Control — snap to grid lines
 }
 
+// MARK: - EdgeZone
+
+/// Where the (clamped) cursor is relative to the screen edge zones during an edge-shrink drag.
+enum EdgeZone: Equatable {
+    case none
+    case shrink(CGFloat)    // depth into the left/right zone, 0 (outer border) … 1 (screen edge)
+    case minimize           // bottom zone, between the left and right zones
+}
+
 // MARK: - GridSnapper
 
 struct GridSnapper {
@@ -186,7 +195,7 @@ struct GridSnapper {
     /// Uses the cursor position rather than the candidate window frame so that the target screen
     /// is always the one the user is pointing at — a tall candidate frame near a screen edge
     /// could otherwise overlap an adjacent screen more than the current one, causing wrong snapping.
-    private static func containingScreen(for point: CGPoint) -> NSScreen? {
+    static func containingScreen(for point: CGPoint) -> NSScreen? {
         NSScreen.screens.first(where: { cgFrame(of: $0).contains(point) })
     }
 
@@ -327,5 +336,62 @@ struct GridSnapper {
         // NSLog("right edge: %@", String(describing: r.maxX))
 
         return r
+    }
+
+    // MARK: - Edge shrink
+
+    /// Clamps `point` into `screen` (CG coords). The last addressable pixel is maxX − 1 / maxY − 1,
+    /// so a cursor pushed against the screen edge always reaches the full depth of a zone.
+    static func clamp(_ point: CGPoint, to screen: CGRect) -> CGPoint {
+        CGPoint(x: min(max(point.x, screen.minX), screen.maxX - 1),
+                y: min(max(point.y, screen.minY), screen.maxY - 1))
+    }
+
+    /// Returns the edge zone for a `point` already clamped to `screen` (CG coords).
+    /// The left/right zones span the full screen height, so the bottom corners belong to them.
+    static func edgeZone(at point: CGPoint, in screen: CGRect,
+                         zoneWidth: CGFloat, bottomHeight: CGFloat) -> EdgeZone {
+        let distLeft   = point.x - screen.minX
+        let distRight  = screen.maxX - 1 - point.x
+        let distBottom = screen.maxY - 1 - point.y
+
+        if zoneWidth > 0 {
+            let dist = min(distLeft, distRight)
+            if dist < zoneWidth {
+                return .shrink(min(max((zoneWidth - dist) / zoneWidth, 0), 1))
+            }
+        }
+        if bottomHeight > 0 && distBottom < bottomHeight {
+            return .minimize
+        }
+        return .none
+    }
+
+    /// The bottom minimize zone of `screen` (CG coords): the bottom band between the side zones.
+    static func minimizeZoneRect(in screen: CGRect, zoneWidth: CGFloat, bottomHeight: CGFloat) -> CGRect {
+        CGRect(x: screen.minX + zoneWidth,
+               y: screen.maxY - bottomHeight,
+               width: max(screen.width - 2 * zoneWidth, 0),
+               height: bottomHeight)
+    }
+
+    /// Scales `fullSize` uniformly for shrink depth `t` (0 = full size, 1 = minimum).
+    /// The minimum is `minWidth`, raised where needed so that neither dimension drops below
+    /// `floorSize` (the window-grab size filter — a smaller window could not be picked up again).
+    static func shrunkSize(fullSize: CGSize, t: CGFloat, minWidth: CGFloat, floorSize: CGSize) -> CGSize {
+        guard fullSize.width > 0, fullSize.height > 0 else { return fullSize }
+        let minScale = min(max(minWidth / fullSize.width,
+                               floorSize.width / fullSize.width,
+                               floorSize.height / fullSize.height), 1)
+        let scale = 1 - (1 - minScale) * min(max(t, 0), 1)
+        return CGSize(width: (fullSize.width * scale).rounded(), height: (fullSize.height * scale).rounded())
+    }
+
+    /// A frame of `size` positioned so that `cursor` sits at `grabFraction` (0…1 in each axis)
+    /// of the window — the grab point stays under the cursor while the window shrinks.
+    static func frame(size: CGSize, anchoredAt cursor: CGPoint, grabFraction: CGPoint) -> CGRect {
+        CGRect(x: (cursor.x - size.width  * grabFraction.x).rounded(),
+               y: (cursor.y - size.height * grabFraction.y).rounded(),
+               width: size.width, height: size.height)
     }
 }
