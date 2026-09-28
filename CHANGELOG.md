@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.0] - 2026-09-28
+
+### Added
+- **Edge shrink** — while dragging a window, hold the edge shrink modifier combination and move towards the left or right screen edge: the window shrinks progressively the deeper it goes into the edge zone, down to a configurable minimum width. The grab point stays under the cursor and the window never leaves the screen sideways. Release the mouse inside the zone to leave the window shrunk; its original size is remembered and restored the next time you pick it up with the combination held. Release the combination mid-drag to return the window to its original size.
+- **Bottom minimize** — with the same combination held, drag a window into the bottom zone of the screen (between the side zones): a highlighted strip appears, and releasing the mouse there minimizes the window. It is moved back to where the drag started first, so it reappears there when restored from the Dock.
+- **Screen lock while shrinking** — while the edge shrink combination is held, the window stays on its current screen, and edges between two monitors act like outer screen edges. Release the combination to move the window to another screen.
+- **Screen Edges settings** — new card in the Behaviour tab: side zone width (percentage of each screen's width, default 5 %), bottom zone height (default 40 pt), and minimum shrink width (default 400 pt). While adjusting the zone sliders, the zones of all screens are shown on screen. Edge shrink is disabled by default — assign a combination in the Keys tab to enable it.
+
+### Changed
+- **Exact modifier combinations** — snap modifiers are now modifier *combinations* (e.g. ⌃⌥) recorded with a click-to-record badge in the Keys tab, and a feature activates only when exactly its combination is held. Previously, grid snap on Control also activated while Control + Option was held. Each feature can be disabled, and a combination can only be used by one feature. Existing snap keys are migrated automatically.
+- **Release the drag trigger before snapping** — because matching is exact, the drag trigger's modifier counts as part of the held keys. With the default FN trigger, release FN after starting the drag and then hold the snap combination (FN + Shift no longer snaps to windows). Keeping only the trigger held gives a plain drag, as before. Mouse button drags are unaffected.
+- **Modifier changes apply immediately** — pressing or releasing a snap or edge shrink combination during a drag now updates the window right away, without needing to move the mouse.
+- **Buttons in the Keys tab** — Cancel and Disable next to the recorder badges are now regular bordered buttons.
+- **README** — documents modifier combinations, edge shrink and bottom minimize, and corrects the minimum macOS version (15.7).
+
 ## [1.0.11] - 2026-08-10
 
 ### Fixed

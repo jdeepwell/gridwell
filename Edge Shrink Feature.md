@@ -1,6 +1,6 @@
 # Feature: Modifier Combinations, Edge Shrink & Bottom Minimize
 
-Status: **in progress** — Step 1 done and verified. Step 2 implemented, awaiting manual testing.
+Status: **done** — shipped in v1.1.0.
 
 ## Overview
 
