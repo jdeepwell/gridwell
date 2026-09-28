@@ -62,7 +62,7 @@ class GridConfigStore: ObservableObject {
     private let minWindowHeightKey         = "minWindowHeight"
     private let resizeBorderPercentKey     = "resizeBorderPercent"
     private let resizeBorderMinPixelsKey   = "resizeBorderMinPixels"
-    private let edgeZoneWidthKey           = "edgeZoneWidth"
+    private let edgeZonePercentKey         = "edgeZonePercent"
     private let edgeShrinkMinWidthKey      = "edgeShrinkMinWidth"
     private let bottomZoneHeightKey        = "bottomZoneHeight"
     private let triggerShortcutKey              = "triggerShortcut"
@@ -104,8 +104,9 @@ class GridConfigStore: ObservableObject {
     /// Minimum resize border in points. Ensures a usable border on small windows.
     @Published private(set) var resizeBorderMinPixels: Int = 40
 
-    /// Width of the left/right screen edge zones in which a dragged window shrinks (edge shrink).
-    @Published private(set) var edgeZoneWidth: Int = 120
+    /// Width of the left/right screen edge zones in which a dragged window shrinks (edge shrink),
+    /// as a percentage of the width of the screen in question.
+    @Published private(set) var edgeZonePercent: Double = 5.0
 
     /// Width in points a window is shrunk to when pushed fully into an edge zone.
     @Published private(set) var edgeShrinkMinWidth: Int = 400
@@ -144,8 +145,8 @@ class GridConfigStore: ObservableObject {
         if let m = UserDefaults.standard.object(forKey: resizeBorderMinPixelsKey) as? Int {
             resizeBorderMinPixels = m
         }
-        if let w = UserDefaults.standard.object(forKey: edgeZoneWidthKey) as? Int {
-            edgeZoneWidth = w
+        if let p = UserDefaults.standard.object(forKey: edgeZonePercentKey) as? Double {
+            edgeZonePercent = p
         }
         if let w = UserDefaults.standard.object(forKey: edgeShrinkMinWidthKey) as? Int {
             edgeShrinkMinWidth = w
@@ -276,9 +277,9 @@ class GridConfigStore: ObservableObject {
         UserDefaults.standard.set(value, forKey: resizeBorderMinPixelsKey)
     }
 
-    func setEdgeZoneWidth(_ value: Int) {
-        edgeZoneWidth = value
-        UserDefaults.standard.set(value, forKey: edgeZoneWidthKey)
+    func setEdgeZonePercent(_ value: Double) {
+        edgeZonePercent = value
+        UserDefaults.standard.set(value, forKey: edgeZonePercentKey)
     }
 
     func setEdgeShrinkMinWidth(_ value: Int) {

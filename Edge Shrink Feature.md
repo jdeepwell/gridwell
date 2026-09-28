@@ -59,10 +59,11 @@ Today, holding fn+⇧ snaps. After the update, snapping only activates once fn i
 - Releasing the combination unlocks: the window follows the real cursor (possibly onto the other screen) at full size. Pressing the combination again locks the screen the cursor is on now.
 
 ### Left / right shrink zones
-- Depth measured from the clamped cursor: `t = clamp((zoneWidth − distanceFromEdge) / zoneWidth, 0, 1)`.
+- Depth measured from the clamped cursor: `t = clamp((zoneWidth − distanceFromEdge) / zoneWidth, 0, 1)`, where `zoneWidth` = side zone % × width of the locked screen.
 - Uniform scaling, aspect ratio preserved, from full size (t = 0) down to the configured **minimum width in points** (t = 1). Linear interpolation. The app's own minimum size may prevent further shrinking.
 - Scaling is anchored at the grab point: the cursor keeps the same relative position inside the window.
 - Size is always computed from the full (drag-start or remembered) size, so moving back out of the zone grows the window smoothly.
+- While shrinking is active, the window's left and right edges are kept inside the locked screen (the window is shifted horizontally if needed, so the grab point may drift off the cursor near the edge). Vertical position is not limited.
 - Mouse-up inside the zone leaves the window shrunk.
 
 ### Remembered original size
@@ -82,9 +83,11 @@ Today, holding fn+⇧ snaps. After the update, snapping only activates once fn i
 ### Settings — Behaviour tab, "Screen Edges" card
 | Setting | Default |
 |---|---|
-| Edge zone width | 120 pt |
+| Side zone width | 5 % of the width of the screen in question (1–25 %) |
 | Minimum width | 400 pt |
 | Bottom zone height | 40 pt |
+
+While either zone slider is dragged (and for 1 s after release), the side and bottom zones of all screens are shown with the same overlay strips used for the minimize zone, updating live.
 
 No enable switches: the feature is enabled by assigning a modifier combination in the Keys tab (hint text in the card says so). Both edge shrink and bottom minimize are enabled/disabled together. New keys with defaults — no migration needed.
 

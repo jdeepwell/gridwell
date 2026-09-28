@@ -348,6 +348,7 @@ class MouseInteractionHandler {
     /// Edge shrink: the cursor is clamped to the screen locked when the shrink combination became
     /// active, so edges shared with another screen behave like outer edges. The window scales around
     /// the grab point in the left/right zones and keeps its full size in the bottom minimize zone.
+    /// Its left and right edges are kept inside the locked screen.
     private func applyEdgeShrink(at location: CGPoint) {
         if lockedScreen == nil {
             guard let screen = GridSnapper.containingScreen(for: location) else { return }
@@ -357,7 +358,7 @@ class MouseInteractionHandler {
         guard let screen = lockedScreen else { return }
 
         let point      = GridSnapper.clamp(location, to: screen)
-        let zoneWidth  = CGFloat(gridStore.edgeZoneWidth)
+        let zoneWidth  = GridSnapper.edgeZoneWidth(in: screen, percent: gridStore.edgeZonePercent)
         let zoneHeight = CGFloat(gridStore.bottomZoneHeight)
         let zone = GridSnapper.edgeZone(at: point, in: screen, zoneWidth: zoneWidth, bottomHeight: zoneHeight)
 
@@ -377,7 +378,9 @@ class MouseInteractionHandler {
             setMinimizeZone(nil)
         }
 
-        windowManipulator.updateDrag(to: GridSnapper.frame(size: size, anchoredAt: point, grabFraction: grabFraction))
+        // The window must not leave the locked screen sideways; the grab point may then drift off the cursor.
+        let frame = GridSnapper.frame(size: size, anchoredAt: point, grabFraction: grabFraction)
+        windowManipulator.updateDrag(to: GridSnapper.keepHorizontallyInside(frame, screen: screen))
     }
 
     /// Shows the minimize strip over `rect` (CG coords), or hides it when nil.

@@ -284,15 +284,15 @@ private struct BehaviourTab: View {
                     PreferenceSectionTitle("Screen Edges")
 
                     HStack(alignment: .top, spacing: 30) {
-                        PreferenceSliderControl(
+                        PreferencePercentSliderControl(
                             label: "Side zone width",
                             value: Binding(
-                                get: { store.edgeZoneWidth },
-                                set: { store.setEdgeZoneWidth($0) }
+                                get: { store.edgeZonePercent },
+                                set: { store.setEdgeZonePercent($0) }
                             ),
-                            range: 20...400,
-                            step: 10,
-                            tickCount: 39
+                            range: 1...25,
+                            step: 1,
+                            onEditingChanged: { EdgeZonePreview.shared.setEditing($0) }
                         )
 
                         PreferenceSliderControl(
@@ -303,7 +303,8 @@ private struct BehaviourTab: View {
                             ),
                             range: 10...200,
                             step: 5,
-                            tickCount: 39
+                            tickCount: 39,
+                            onEditingChanged: { EdgeZonePreview.shared.setEditing($0) }
                         )
                     }
 
@@ -322,10 +323,12 @@ private struct BehaviourTab: View {
                         Color.clear.frame(height: 1)
                     }
 
-                    Text("While the edge shrink combination is held, a window dragged into a side zone shrinks down to the minimum width, and releasing it in the bottom zone minimizes it. Enable by assigning a combination in the Keys tab.")
+                    Text("While the edge shrink combination is held, a window dragged into a side zone shrinks down to the minimum width, and releasing it in the bottom zone minimizes it. The side zone width is a percentage of each screen's width. Enable by assigning a combination in the Keys tab.")
                         .preferenceHelpText()
                 }
             }
+            .onChange(of: store.edgeZonePercent) { EdgeZonePreview.shared.refresh() }
+            .onChange(of: store.bottomZoneHeight) { EdgeZonePreview.shared.refresh() }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
@@ -400,6 +403,7 @@ private struct PreferenceSliderControl: View {
     let range: ClosedRange<Int>
     let step: Int
     var tickCount: Int = 35
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
     private var doubleValue: Binding<Double> {
         Binding(
@@ -423,7 +427,8 @@ private struct PreferenceSliderControl: View {
                 ZStack {
                     SliderTickMarks(count: tickCount)
                         .padding(.horizontal, 1)
-                    Slider(value: doubleValue, in: Double(range.lowerBound)...Double(range.upperBound), step: Double(step))
+                    Slider(value: doubleValue, in: Double(range.lowerBound)...Double(range.upperBound), step: Double(step),
+                           onEditingChanged: onEditingChanged)
                         .controlSize(.small)
                 }
                 .frame(height: 18)
@@ -451,13 +456,16 @@ private struct PreferencePercentSliderControl: View {
     let range: ClosedRange<Double>
     let step: Double
     var tickCount: Int = 25
+    var onEditingChanged: (Bool) -> Void = { _ in }
 
-    init(label: String?, value: Binding<Double>, range: ClosedRange<Double>, step: Double, tickCount: Int = 25) {
+    init(label: String?, value: Binding<Double>, range: ClosedRange<Double>, step: Double, tickCount: Int = 25,
+         onEditingChanged: @escaping (Bool) -> Void = { _ in }) {
         self.label = label
         self._value = value
         self.range = range
         self.step = step
         self.tickCount = tickCount
+        self.onEditingChanged = onEditingChanged
     }
 
     var body: some View {
@@ -472,7 +480,7 @@ private struct PreferencePercentSliderControl: View {
                 ZStack {
                     SliderTickMarks(count: tickCount)
                         .padding(.horizontal, 1)
-                    Slider(value: $value, in: range, step: step)
+                    Slider(value: $value, in: range, step: step, onEditingChanged: onEditingChanged)
                         .controlSize(.small)
                 }
                 .frame(height: 18)

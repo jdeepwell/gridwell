@@ -340,6 +340,11 @@ struct GridSnapper {
 
     // MARK: - Edge shrink
 
+    /// Width of the left/right edge zones on `screen` (CG coords) for a percentage of its width.
+    static func edgeZoneWidth(in screen: CGRect, percent: Double) -> CGFloat {
+        (screen.width * CGFloat(percent) / 100).rounded()
+    }
+
     /// Clamps `point` into `screen` (CG coords). The last addressable pixel is maxX − 1 / maxY − 1,
     /// so a cursor pushed against the screen edge always reaches the full depth of a zone.
     static func clamp(_ point: CGPoint, to screen: CGRect) -> CGPoint {
@@ -385,6 +390,15 @@ struct GridSnapper {
                                floorSize.height / fullSize.height), 1)
         let scale = 1 - (1 - minScale) * min(max(t, 0), 1)
         return CGSize(width: (fullSize.width * scale).rounded(), height: (fullSize.height * scale).rounded())
+    }
+
+    /// Shifts `frame` horizontally so that its left and right edges stay inside `screen` (CG coords).
+    /// A frame wider than the screen is aligned to the screen's left edge.
+    static func keepHorizontallyInside(_ frame: CGRect, screen: CGRect) -> CGRect {
+        var r = frame
+        if r.maxX > screen.maxX { r.origin.x = screen.maxX - r.width }
+        if r.minX < screen.minX { r.origin.x = screen.minX }
+        return r
     }
 
     /// A frame of `size` positioned so that `cursor` sits at `grabFraction` (0…1 in each axis)
