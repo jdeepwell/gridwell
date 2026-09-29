@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./delete_prefs.sh                  # delete preferences
-#   ./delete_prefs.sh --accessibility  # also reset the Accessibility permission,
+#   ./delete_prefs.sh --accessibility  # (or -x) also reset the Accessibility permission,
 #                                      # so the first-launch permission flow runs again
 #
 # A timestamped backup of the current preferences is written to PrefsBackups/ first.
@@ -20,8 +20,8 @@ BACKUP_DIR="$(cd "$(dirname "$0")" && pwd)/PrefsBackups"
 RESET_ACCESSIBILITY=false
 case "${1:-}" in
     "") ;;
-    --accessibility) RESET_ACCESSIBILITY=true ;;
-    *) echo "Usage: $0 [--accessibility]"; exit 1 ;;
+    -x|--accessibility) RESET_ACCESSIBILITY=true ;;
+    *) echo "Usage: $0 [-x|--accessibility]"; exit 1 ;;
 esac
 
 pkill -x Gridwell 2>/dev/null && sleep 1 || true
