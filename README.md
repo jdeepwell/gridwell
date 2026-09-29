@@ -5,14 +5,15 @@ A macOS utility for moving and resizing windows by dragging anywhere in them —
 ---
 
 <!-- SCREENSHOT: Animated GIF or screen recording showing a window being dragged from its body (not title bar), with the snap-to-grid modifier held, snapping into a grid cell. Ideally shows two or three different apps side by side to illustrate the grid layout. -->
-> **[Screenshot — window drag + grid snap in action]**
+>
+![Gridwell Illustration](<Assets/hero image.png>)
 
 ---
 
 ## Features
 
-- **Drag from anywhere** — hold the trigger modifier key (default: FN / Globe) and left-click anywhere inside a window to move or resize it, no matter where your cursor is – you can release the trigger modifier key during interaction. Alternatively, use a configurable extra mouse button (middle, back, forward, etc.) with no modifier key required.
-- **Move or resize in one gesture** — the drag zone is determined by cursor position: clicking near any edge (left, right, top, or bottom) resizes, clicking in the centre moves.
+- **Drag/Resize from ANYWHERE** — hold the trigger modifier key (default: FN / Globe) and left-click anywhere inside a window to move or anywhere near an edge to resize it – you can release the trigger modifier key during interaction. Alternatively, use a configurable extra mouse button (middle, back, forward, etc.) with no modifier key required.
+- **No title bar gap or edge sniping** — you do not need to aim for that one free gap in a window's title bar or its edge to move or resize it. The trigger key and extra mouse button work anywhere in the window.
 - **Snap to grid** — hold the grid snap combination (default: Control) while dragging to snap the window to the nearest cell of your custom grid.
 - **Snap to windows** — hold the window snap combination (default: Shift) while dragging to align the window's edges with the edges of other on-screen windows.
 - **Exact modifier combinations** — every feature is activated by its own modifier combination (e.g. ⌃⌥), and only when exactly that combination is held. Combinations can be pressed, changed, or released at any point during a drag and the window responds immediately.
