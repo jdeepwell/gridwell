@@ -3,9 +3,6 @@
 A macOS utility for moving and resizing windows by dragging anywhere in them — not just the title bar — with optional snapping to a custom grid or to the edges of other windows.
 
 ---
-
-<!-- SCREENSHOT: Animated GIF or screen recording showing a window being dragged from its body (not title bar), with the snap-to-grid modifier held, snapping into a grid cell. Ideally shows two or three different apps side by side to illustrate the grid layout. -->
->
 ![Gridwell Illustration](<Assets/hero image.png>)
 
 ---
@@ -69,12 +66,6 @@ Assign a combination to **Edge shrink** in the Keys tab (disabled by default). W
 - **Bottom zone** — move into the bottom zone between the side zones. A highlighted strip appears; release the mouse to minimize the window. It is moved back to where the drag started first, so it reappears there when restored from the Dock. Release the combination before the mouse to cancel.
 - **Screen lock** — while the combination is held, the window stays on its current screen, and edges shared with another monitor behave like outer screen edges. Release the combination to return the window to its original size and move it freely to another screen; press it again to shrink there.
 
----
-
-<!-- SCREENSHOT: Side-by-side of the same desktop with snapping off (window mid-drag, free position) and snapping on (window locked to a grid cell). Shows the visual effect of grid snapping. -->
-> **[Screenshot — free drag vs. grid-snapped drag comparison]**
-
----
 
 ## Preferences
 
@@ -83,9 +74,6 @@ Open preferences with **⌘ ;** or via the menu bar.
 ### Grid tab
 
 Configure the number of columns and rows for each connected screen. A live preview shows the current grid layout scaled to the screen's aspect ratio.
-
-<!-- SCREENSHOT: Preferences window open on the Grid tab, showing one or two GroupBox sections (one per screen) with the grid preview canvas, column stepper, and row stepper visible. -->
-> **[Screenshot — Preferences → Grid tab]**
 
 ### Behaviour tab
 
@@ -96,9 +84,6 @@ The **Screen Edges** card sets the edge shrink zones: the side zone width (a per
 ### Keys tab
 
 Set the drag trigger (modifier key combination, modifier+key shortcut, or mouse button) and, in the **Modifier Combinations** card, the combinations for snap-to-all-windows, snap-to-same-app-windows, snap-to-grid, and edge shrink. Click a badge, hold the modifier keys, then release them; **Disable** turns a feature off. A combination can only be used by one feature. A separate card lets you define mouse button app exceptions — apps where the mouse button trigger is disabled so native behaviour is preserved.
-
-<!-- SCREENSHOT: Preferences window open on the Keys tab, showing the "Drag Trigger" card and the "Modifier Combinations" card with its recorder badges. -->
-> **[Screenshot — Preferences → Keys tab]**
 
 ### Updates tab
 
@@ -111,8 +96,6 @@ Toggle automatic update checks. This reflects the choice made at first launch an
 - macOS 15.7 Sequoia or later
 - **Accessibility permission** — Gridwell uses the Accessibility API to move and resize windows. On first launch it shows a prompt to open System Settings → Privacy & Security → Accessibility. The app must be trusted before monitoring starts.
 
-<!-- SCREENSHOT: The accessibility permission alert dialog shown on first launch, with the "Open Settings" button visible. -->
-> **[Screenshot — Accessibility permission prompt on first launch]**
 
 ## Building
 
