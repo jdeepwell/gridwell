@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.1.1] - 2026-09-29
+
+### Changed
+- Graphical changes
+
 ## [1.1.0] - 2026-09-28
 
 ### Added
