@@ -5,12 +5,9 @@ final class PermissionsWindowController: NSWindowController {
     private var onDismiss: (() -> Void)?
 
     init() {
-        // Image is 1400×553 px @2x → 700×276 pt logical size.
-        // Override the size so NSImage treats it as @2x; scaleNone then renders
-        // it at exactly the view bounds with full Retina sharpness.
-        let imageSize = NSSize(width: 700, height: 276)
-        let img = NSImage(named: "waiting-for-permissions")!
-        img.size = imageSize
+        // Image is a 1x screenshot (743×404 px → 743×404 pt).
+        let img = Self.loadImageAtPixelSize("waiting-for-permissions")
+        let imageSize = img.size
 
         let imageView = NSImageView(image: img)
         imageView.imageScaling = .scaleNone
@@ -60,10 +57,8 @@ final class PermissionsWindowController: NSWindowController {
     func transitionToWelcome(onClose: @escaping () -> Void) {
         onDismiss = onClose
 
-        let img = NSImage(named: "where-is-gridwell")!
-        // Treat as @2x Retina (same convention as waiting-for-permissions):
-        // 1200×284 px physical → 600×142 pt logical.
-        img.size = NSSize(width: img.size.width / 2, height: img.size.height / 2)
+        // Image is a 1x screenshot (718×388 px → 718×388 pt).
+        let img = Self.loadImageAtPixelSize("where-is-gridwell")
         let imageSize = img.size
 
         let imageView = NSImageView(image: img)
@@ -100,6 +95,16 @@ final class PermissionsWindowController: NSWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
             self?.dismissWelcome()
         }
+    }
+
+    // Loads a bundled image and sizes it 1 pt per pixel, independent of the
+    // DPI metadata stored in the PNG, so scaleNone shows it at its native size.
+    private static func loadImageAtPixelSize(_ name: String) -> NSImage {
+        let img = NSImage(named: name)!
+        if let rep = img.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
+            img.size = NSSize(width: rep.pixelsWide, height: rep.pixelsHigh)
+        }
+        return img
     }
 
     @objc private func dismissWelcome() {
