@@ -17,7 +17,7 @@ A macOS utility for moving and resizing windows by dragging anywhere in them —
 - **Snap to grid** — hold the grid snap combination (default: Control) while dragging to snap the window to the nearest cell of your custom grid.
 - **Snap to windows** — hold the window snap combination (default: Shift) while dragging to align the window's edges with the edges of other on-screen windows.
 - **Exact modifier combinations** — every feature is activated by its own modifier combination (e.g. ⌃⌥), and only when exactly that combination is held. Combinations can be pressed, changed, or released at any point during a drag and the window responds immediately.
-- **Edge shrink** — hold the edge shrink combination while dragging a window towards the left or right screen edge, and it shrinks the deeper it goes into the edge zone. Its original size is remembered for the next time you pick it up.
+- **Edge shrink** — hold the edge shrink combination while dragging a window towards the left or right screen edge, and it shrinks the deeper it goes into the edge zone. Its original size is remembered for the next time you pick it up. Inspired by [Scott Jenson](https://jenson.org/) - see his talk at https://youtu.be/V7AfAcQwLW0?t=1819
 - **Bottom minimize** — with the same combination held, release a window in the bottom zone of the screen to minimize it.
 - **Per-screen grids** — configure a different column and row count for each connected display.
 - **Fully configurable keys** — the drag trigger (modifier key combination, modifier+key shortcut, or mouse button) and the modifier combinations for snap-to-windows, snap-to-same-app-windows, snap-to-grid, and edge shrink are all set in preferences and persist across launches.
